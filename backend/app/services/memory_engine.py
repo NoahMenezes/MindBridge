@@ -108,26 +108,53 @@ def query_memories(query, workspace, limit=10):
         print(f"Query Memories Error: {e}")
         return []
 
-def search_relevant_memories(query: str, workspace: str = "Personal", limit: int = 5):
+def search_relevant_memories(query: str, workspace: str = "Personal", limit: int = 10):
     try:
+        print(f"\n[CHROMA_DEBUG] Initiating search for: '{query}' in workspace: {workspace}")
+        
+        # 1. Attempt to resolve Workspace ID via REST
         slug = workspace.lower().replace(" ", "-")
-        url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
+        ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
         headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
         
         workspace_id = None
-        with httpx.Client() as client:
-            resp = client.get(url, headers=headers)
-            if resp.status_code == 200 and len(resp.json()) > 0:
-                workspace_id = resp.json()[0]["id"]
-                
-        if not workspace_id:
-            return []
+        try:
+            with httpx.Client() as client:
+                resp = client.get(ws_url, headers=headers, timeout=5.0)
+                if resp.status_code == 200 and len(resp.json()) > 0:
+                    workspace_id = resp.json()[0]["id"]
+        except Exception as ws_err:
+            print(f"[CHROMA_DEBUG] Workspace resolution failed: {ws_err}")
 
-        results = collection.query(
-            query_texts=[query],
-            where={"workspace_id": str(workspace_id)},
-            n_results=limit
-        )
+        # 2. Build Query Filter (None if workspace not found or 'Personal' fallback)
+        where_filter = {"workspace_id": str(workspace_id)} if workspace_id else None
+        
+        print(f"[CHROMA_DEBUG] Workspace ID: {workspace_id} (Filter: {where_filter})")
+        print(f"[CHROMA_DEBUG] Total items in collection: {collection.count()}")
+
+        # 3. Handle Search / Fallback
+        if not query or not query.strip():
+            print("[CHROMA_DEBUG] Empty query. Fetching absolute latest memories across all workspaces.")
+            # If query is empty, we use .get() to just grab the most recent ones
+            results = collection.get(
+                where=where_filter,
+                limit=limit,
+                include=["documents", "metadatas"]
+            )
+            # Standardize format to match .query()
+            results = {
+                "ids": [results["ids"]] if results["ids"] else [[]],
+                "documents": [results["documents"]] if results["documents"] else [[]],
+                "metadatas": [results["metadatas"]] if results["metadatas"] else [[]]
+            }
+        else:
+            results = collection.query(
+                query_texts=[query],
+                where=where_filter,
+                n_results=limit
+            )
+
+        print(f"[CHROMA_DEBUG] Search returned {len(results['ids'][0])} results.")
         
         memories = []
         if results["ids"] and len(results["ids"][0]) > 0:
@@ -138,13 +165,20 @@ def search_relevant_memories(query: str, workspace: str = "Personal", limit: int
                     "id": results["ids"][0][i],
                     "summary": summary,
                     "workspace": workspace,
-                    "type": results["metadatas"][0][i]["type"],
+                    "type": results["metadatas"][0][i].get("type", "memory"),
                     "timestamp": results["metadatas"][0][i].get("timestamp", datetime.now(timezone.utc).isoformat()),
                     "score": 1.0 - results["distances"][0][i] if "distances" in results else 0.8
                 })
+                print(f"  - [{memories[-1]['type']}] {summary[:50]}")
+        
+        # If still empty and we were filtering, try one last time WITHOUT the filter
+        if len(memories) == 0 and where_filter is not None:
+            print("[CHROMA_DEBUG] No results in workspace. Retrying search GLOBALLY.")
+            return search_relevant_memories(query, workspace="Global_Search_Fallback", limit=limit)
+
         return memories
     except Exception as e:
-        print(f"Search Memories Error: {e}")
+        print(f"[CHROMA_DEBUG] Search Memories Error: {e}")
         return []
 
 def delete_memory(memory_id, workspace):
@@ -201,14 +235,32 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 def store_raw_chat(raw_content: str, workspace: str, source: str):
     try:
-        # Use REST API (Port 443) to bypass DB connection issues
+        # 1. Fetch Workspace ID via REST to bypass Postgres issues
+        slug = workspace.lower().replace(" ", "-")
+        ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        
+        workspace_id = "Personal"
+        with httpx.Client() as client:
+            resp = client.get(ws_url, headers=headers)
+            if resp.status_code == 200 and len(resp.json()) > 0:
+                workspace_id = resp.json()[0]["id"]
+
+        # 2. Add to ChromaDB for Semantic Search
+        memory_id = f"raw_{uuid.uuid4().hex[:8]}"
+        collection.add(
+            documents=[raw_content],
+            metadatas=[{
+                "workspace_id": str(workspace_id),
+                "type": "raw_chat",
+                "source": source,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }],
+            ids=[memory_id]
+        )
+
+        # 3. Store in Supabase via REST
         url = f"{SUPABASE_URL}/rest/v1/raw_chat_data"
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-        }
         payload = {
             "workspace": workspace,
             "source": source,
@@ -217,7 +269,7 @@ def store_raw_chat(raw_content: str, workspace: str, source: str):
         }
         
         with httpx.Client() as client:
-            response = client.post(url, headers=headers, json=payload)
+            response = client.post(url, headers={**headers, "Content-Type": "application/json", "Prefer": "return=representation"}, json=payload)
             if response.status_code >= 400:
                 print(f"Supabase REST Error (Raw): {response.text}")
                 return {"status": "error", "message": response.text}
@@ -230,14 +282,35 @@ def store_raw_chat(raw_content: str, workspace: str, source: str):
 
 def store_structured_chat(messages: list, workspace: str):
     try:
-        # Use REST API (Port 443) to bypass DB connection issues
+        # 1. Fetch Workspace ID via REST
+        slug = workspace.lower().replace(" ", "-")
+        ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        
+        workspace_id = "Personal"
+        with httpx.Client() as client:
+            resp = client.get(ws_url, headers=headers)
+            if resp.status_code == 200 and len(resp.json()) > 0:
+                workspace_id = resp.json()[0]["id"]
+
+        # 2. Extract content for ChromaDB
+        # We join the messages into a searchable block
+        content_block = "\n".join([f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages])
+        
+        # 3. Add to ChromaDB
+        memory_id = f"struct_{uuid.uuid4().hex[:8]}"
+        collection.add(
+            documents=[content_block],
+            metadatas=[{
+                "workspace_id": str(workspace_id),
+                "type": "structured_chat",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }],
+            ids=[memory_id]
+        )
+
+        # 4. Store in Supabase via REST
         url = f"{SUPABASE_URL}/rest/v1/structured_chat_data"
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-        }
         payload = {
             "workspace": workspace,
             "messages": messages,
@@ -245,7 +318,7 @@ def store_structured_chat(messages: list, workspace: str):
         }
         
         with httpx.Client() as client:
-            response = client.post(url, headers=headers, json=payload)
+            response = client.post(url, headers={**headers, "Content-Type": "application/json", "Prefer": "return=representation"}, json=payload)
             if response.status_code >= 400:
                 print(f"Supabase REST Error (Structured): {response.text}")
                 return {"status": "error", "message": response.text}

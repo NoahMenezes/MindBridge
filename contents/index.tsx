@@ -178,7 +178,10 @@ const MindBridgeUI = () => {
       .map(m => m.content)
       .join("\n")
 
-    const workspace = structuredPayload[0]?.workspace || "Personal"
+    const platform = window.location.hostname.includes("chatgpt") ? "chatgpt" :
+      window.location.hostname.includes("claude") ? "claude" : "gemini"
+    
+    const workspace = structuredPayload[0]?.workspace || platform
 
     chrome.runtime.sendMessage({
       type: "GET_RELEVANT_MEMORIES",
@@ -199,7 +202,7 @@ const MindBridgeUI = () => {
       document.querySelector("div[contenteditable='true']")
 
     if (input) {
-      const contextBlock = `[RECALLED MEMORY]\n${memorySummary}\n---\n\n`
+      const contextBlock = `[MEMORY CONTEXT]\n${memorySummary}\n[/MEMORY CONTEXT]\n\n`
 
       if (input instanceof HTMLTextAreaElement) {
         input.value = contextBlock + input.value
@@ -278,7 +281,6 @@ const MindBridgeUI = () => {
             <button
               onClick={openMemorySyncModal}
               className="action-btn sync-btn"
-              disabled={!hasChat}
             >
               <span className="icon">🚀</span>
               <span className="text">Sync Memory</span>
