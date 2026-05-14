@@ -1,0 +1,32 @@
+{
+  "tool": "get_workspace_context",
+  "version": "1.0",
+  "request": {
+    "workspace": "github.com"
+  },
+  "response": {
+    "context": {
+      "workspace": "github.com",
+      "total_memories": 42,
+      "last_updated": "2026-05-14T11:29:32+05:30",
+      "recent_memories": [
+        {
+          "id": "mem_9f2a3c1d",
+          "workspace": "github.com",
+          "type": "project",
+          "summary": "Discussed OAuth 2.0 PKCE flow.",
+          "content": "Discussed OAuth 2.0 PKCE flow for MindBridge extension.",
+          "score": 1.0,
+          "tags": ["auth", "security"],
+          "timestamp": "2026-05-14T11:29:32+05:30"
+        }
+      ],
+      "top_tags": [
+        { "tag": "auth",     "count": 8 },
+        { "tag": "security", "count": 5 },
+        { "tag": "react",    "count": 3 }
+      ]
+    },
+    "version": "1.0"
+  }
+}
