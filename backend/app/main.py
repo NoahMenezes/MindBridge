@@ -72,39 +72,37 @@ from app.schemas import (
     DeleteMemoryRequest,
 )
 
+from app.services.memory_engine import store_memory, query_memories
+
 # --- Endpoints ---
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "MindBridge API Running"}
+    return {"status": "ok", "message": "MindBridge AI Memory Engine Running"}
 
 @app.post("/add_memory", status_code=201)
 async def add_memory(request: AddMemoryRequest):
+    result = store_memory(
+        content=request.content,
+        workspace=request.workspace,
+        type=request.type,
+        tags=request.tags
+    )
     return {
-        "id": str(uuid.uuid4()),
-        "workspace": request.workspace,
-        "type": request.type,
-        "tags": request.tags or [],
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z", # ISO-8601
-        "message": "Memory stored successfully.",
+        **result,
+        "message": "Memory successfully stored in ChromaDB.",
         "version": "1.0"
     }
 
 @app.post("/search_memories")
 async def search_memories(request: SearchMemoriesRequest):
+    memories = query_memories(
+        query=request.query,
+        workspace=request.workspace,
+        limit=request.limit
+    )
     return {
-        "memories": [
-            {
-                "id": str(uuid.uuid4()),
-                "workspace": request.workspace,
-                "type": "project",
-                "summary": "Auto-generated summary",
-                "content": "Example content matching query",
-                "score": 0.95,
-                "tags": ["example"],
-                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-            }
-        ],
-        "count": 1,
+        "memories": memories,
+        "count": len(memories),
         "query": request.query,
         "workspace": request.workspace,
         "version": "1.0"

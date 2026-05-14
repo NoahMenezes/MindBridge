@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react"
 import "./style.css"
+import { auth } from "~core/firebase"
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth"
+import { searchMemories, type Memory } from "~core/api"
 
 const platforms = [
   { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', color: '#10a37f', url: 'https://chatgpt.com' },
@@ -12,6 +15,9 @@ function IndexPopup() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("identity")
   const [identity, setIdentity] = useState(null)
+  const [user, setUser] = useState(null)
+  const [memories, setMemories] = useState<Memory[]>([])
+  const [selectedWorkspace, setSelectedWorkspace] = useState("Personal")
   const [connections, setConnections] = useState({
     chatgpt: false,
     claude: false,
@@ -20,7 +26,16 @@ function IndexPopup() {
   })
 
   useEffect(() => {
-    // Initial fetch of state
+    let unsubscribe = () => {}
+    if (auth) {
+      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        setUser(firebaseUser)
+        if (firebaseUser) {
+          setIdentity(prev => ({ ...prev, email: firebaseUser.email }))
+        }
+      })
+    }
+
     chrome.runtime.sendMessage({ type: "CHECK_SYNC" }, (response) => {
       if (response) {
         if (response.identity) setIdentity(response.identity)
@@ -29,27 +44,46 @@ function IndexPopup() {
       setLoading(false)
     })
 
-    // Listen for real-time updates from background
     const listener = (message) => {
       if (message.type === "CONNECTIONS_UPDATED") {
         setConnections(message.connections)
       }
     }
     chrome.runtime.onMessage.addListener(listener)
-    return () => chrome.runtime.onMessage.removeListener(listener)
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener)
+      unsubscribe()
+    }
   }, [])
+
+  useEffect(() => {
+    if (activeTab === 'memories' || activeTab === 'workspaces') {
+      searchMemories("", selectedWorkspace).then(data => {
+        if (data?.memories) setMemories(data.memories)
+      })
+    }
+  }, [activeTab, selectedWorkspace])
+
+  const handleSignIn = async () => {
+    if (!auth) {
+      alert("Firebase is not initialized. Please check your .env file and restart the dev server.")
+      return
+    }
+    const provider = new GoogleAuthProvider()
+    try {
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      console.error("Auth Error:", error)
+    }
+  }
+
+  const handleSignOut = () => auth && signOut(auth)
 
   const handleConnect = (id) => {
     const platform = platforms.find(p => p.id === id)
     if (platform) {
-      // Set to syncing locally for immediate feedback
       setConnections(prev => ({ ...prev, [id]: 'syncing' }))
-      
-      // Tell background to open the platform to trigger a sync
-      chrome.runtime.sendMessage({ 
-        type: "MANUAL_CONNECT", 
-        payload: { url: platform.url } 
-      })
+      chrome.runtime.sendMessage({ type: "MANUAL_CONNECT", payload: { url: platform.url } })
     }
   }
 
@@ -62,79 +96,53 @@ function IndexPopup() {
         </div>
         <div className="user-profile">
           <div className="avatar"></div>
-          <span style={{ fontSize: '11px', fontWeight: 500 }}>Noah M.</span>
+          <span style={{ fontSize: '11px', fontWeight: 500 }}>{user?.displayName || "Noah M."}</span>
         </div>
       </header>
 
       <nav className="tab-bar">
-        <div 
-          className={`tab ${activeTab === 'identity' ? 'active' : ''}`}
-          onClick={() => setActiveTab('identity')}
-        >
-          Neural Sync
-        </div>
-        <div 
-          className={`tab ${activeTab === 'memories' ? 'active' : ''}`}
-          onClick={() => setActiveTab('memories')}
-        >
-          Memories
-        </div>
-        <div 
-          className={`tab ${activeTab === 'workspaces' ? 'active' : ''}`}
-          onClick={() => setActiveTab('workspaces')}
-        >
-          Workspaces
-        </div>
+        {['identity', 'memories', 'workspaces'].map(tab => (
+          <div 
+            key={tab}
+            className={`tab ${activeTab === tab ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab === 'identity' ? 'Neural Sync' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </div>
+        ))}
       </nav>
 
       <main className="main-content">
         {activeTab === 'identity' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            
             <section>
-              <div className="section-title">Verified Neural Identity</div>
-              <div style={{ padding: '16px', background: 'var(--panel-bg)', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '12px' }}>
+              <div className="section-title">Neural Identity</div>
+              <div className="memory-card" style={{ background: 'var(--panel-bg)', padding: '16px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Master Identity Email
+                  Master Identity Source
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
-                    type="email" 
-                    placeholder="your@email.com"
-                    value={identity?.email || ''}
-                    onChange={(e) => {
-                      const newIdentity = { ...identity, email: e.target.value }
-                      setIdentity(newIdentity)
-                      chrome.runtime.sendMessage({ type: "UPDATE_IDENTITY", identity: newIdentity })
-                    }}
-                    style={{ 
-                      flex: 1, 
-                      background: 'black', 
-                      border: '1px solid var(--border)', 
-                      borderRadius: '6px', 
-                      color: 'white', 
-                      padding: '6px 10px',
-                      fontSize: '12px'
-                    }}
-                  />
-                </div>
+                {!user ? (
+                  <button onClick={handleSignIn} className="btn-primary" style={{ width: '100%', fontSize: '12px' }}>
+                    Sign in with Google
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600 }}>{user.email}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--success)' }}>Firebase Authenticated</span>
+                    </div>
+                    <button onClick={handleSignOut} className="btn-ghost" style={{ fontSize: '10px' }}>Logout</button>
+                  </div>
+                )}
               </div>
 
-              {!identity?.role ? (
-                <div style={{ padding: '24px', textAlign: 'center', background: 'var(--panel-bg)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Connect a tool below to begin syncing your persona.
-                  </p>
+              <div style={{ padding: '16px', background: 'var(--accent-soft)', borderRadius: '12px', border: '1px solid var(--accent)', marginTop: '12px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Active Persona
                 </div>
-              ) : (
-                <div style={{ padding: '16px', background: 'var(--accent-soft)', borderRadius: '12px', border: '1px solid var(--accent)' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>
-                    Active Persona
-                  </div>
-                  <div style={{ fontSize: '15px', fontWeight: 600, color: 'white' }}>{identity.role}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{identity.goal}</div>
-                </div>
-              )}
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'white' }}>{identity?.role || "Neural Engineer"}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{identity?.goal || "Building the future of AI connectivity"}</div>
+              </div>
             </section>
 
             <section>
@@ -146,61 +154,109 @@ function IndexPopup() {
                       <span style={{ fontSize: '18px' }}>{p.icon}</span>
                       <span style={{ fontSize: '13px', fontWeight: 500 }}>{p.name}</span>
                     </div>
-                    
                     {connections[p.id] === true ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--success)', fontSize: '11px', fontWeight: 600 }}>
-                        <div className="dot"></div>
-                        <span>Synced</span>
-                      </div>
+                      <div className="sync-status" style={{ color: 'var(--success)' }}><div className="dot"></div><span>Synced</span></div>
                     ) : connections[p.id] === 'syncing' ? (
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Verifying Login...</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Verifying...</span>
                     ) : (
-                      <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => handleConnect(p.id)}>
-                        Connect
-                      </button>
+                      <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => handleConnect(p.id)}>Connect</button>
                     )}
                   </div>
                 ))}
               </div>
             </section>
-
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-              Connect your AI accounts with the same email to enable seamless cross-platform neural teleportation.
-            </p>
           </div>
         )}
 
         {activeTab === 'memories' && (
-          <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="section-title">Active Neural Bridge</div>
-            <div className="memory-card" style={{ borderStyle: 'dashed', borderColor: '#f59e0b', marginBottom: '16px' }}>
+            <div className="memory-card" style={{ borderStyle: 'dashed', borderColor: '#f59e0b' }}>
               <div className="memory-content" style={{ fontSize: '12px', color: '#f3f4f6' }}>
-                Context captured. Ready to pass to a new AI platform.
+                {identity?.bridgePrompt || "No active bridge context."}
               </div>
-              <button className="btn-ghost" style={{ marginTop: '8px', color: '#f59e0b', fontWeight: 600 }}>⚡ Bridge Ready</button>
+              <button className="btn-ghost" style={{ marginTop: '8px', color: '#f59e0b', fontWeight: 600 }}>⚡ Bridge Sync</button>
             </div>
 
-            <div className="section-title">Static Memory Nodes</div>
+            <div className="section-title">Neural Nodes (ChromaDB)</div>
             <div className="memory-stack">
-              {['Project: React Fintech Dashboard', 'Prefers concise responses'].map((m, i) => (
-                <div key={i} className="memory-card">
-                  <div className="memory-header"><span className="tag">Captured</span></div>
-                  <div className="memory-content">{m}</div>
+              {memories.map((m) => (
+                <div key={m.id} className="memory-card">
+                  <div className="memory-header">
+                    <span className="tag">{m.type}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{new Date(m.timestamp).toLocaleDateString()}</span>
+                  </div>
+                  <div className="memory-content">{m.summary || m.content}</div>
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {activeTab === 'workspaces' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div className="section-title">Workspace Segmentation</div>
-            {['Personal', 'Startup Team', 'External Client'].map(w => (
-              <div key={w} className="memory-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '14px', fontWeight: 500 }}>{w}</span>
-                <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }}>Switch</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <section>
+              <div className="section-title">Workspace Selection</div>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                {['Personal', 'Startup', 'Research'].map(w => (
+                  <button 
+                    key={w}
+                    onClick={() => setSelectedWorkspace(w)}
+                    className={selectedWorkspace === w ? "btn-primary" : "btn-secondary"}
+                    style={{ padding: '6px 12px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                  >
+                    {w}
+                  </button>
+                ))}
               </div>
-            ))}
+            </section>
+
+            <section>
+              <div className="section-title">Neural Mindmap</div>
+              <div style={{ 
+                height: '180px', 
+                background: 'var(--panel-bg)', 
+                borderRadius: '12px', 
+                border: '1px solid var(--border)',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}>
+                <div className="logo-icon" style={{ zIndex: 2, transform: 'scale(1.2)', boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}>M</div>
+                
+                {/* Visual Mindmap Decoration */}
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} style={{
+                    position: 'absolute',
+                    width: '40px',
+                    height: '40px',
+                    background: 'var(--accent-soft)',
+                    borderRadius: '50%',
+                    border: '1px solid var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    left: `${50 + 35 * Math.cos(i * 60 * Math.PI/180)}%`,
+                    top: `${50 + 35 * Math.sin(i * 60 * Math.PI/180)}%`,
+                    transform: 'translate(-50%, -50%)',
+                    opacity: 0.8
+                  }}>
+                    {['🤖', '🎭', '✨', '🚀', '🧠', '📁'][i]}
+                  </div>
+                ))}
+                
+                {/* Connecting lines (Visual only) */}
+                <svg style={{ position: 'absolute', width: '100%', height: '100%', pointerEvents: 'none' }}>
+                  <circle cx="50%" cy="50%" r="65" fill="none" stroke="var(--border)" strokeDasharray="4 4" />
+                </svg>
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
+                Visualizing active connections in the <strong>{selectedWorkspace}</strong> workspace.
+              </p>
+            </section>
           </div>
         )}
       </main>

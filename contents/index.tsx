@@ -115,30 +115,6 @@ const MindBridgeUI = () => {
     })
   }, [])
 
-  const injectUniversalContext = () => {
-    if (!identity && !bridgeContext) return
-
-    const input = document.querySelector("#prompt-textarea") || 
-                  document.querySelector("div[contenteditable='true']")
-    
-    if (input) {
-      const contextBlock = 
-        `[MINDBRIDGE NEURAL IDENTITY SYNCED]\n` +
-        (identity ? `Role: ${identity.role}\nGoal: ${identity.goal}\n` : "") +
-        (bridgeContext ? `Current Flow: ${bridgeContext}\n` : "") +
-        `---\n\n`
-      
-      if (input instanceof HTMLTextAreaElement) {
-        input.value = contextBlock + input.value
-      } else if (input instanceof HTMLElement && input.isContentEditable) {
-        input.innerText = contextBlock + input.innerText
-      }
-      
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-      setShowDropdown(false)
-    }
-  }
-
   return (
     <div className="mind-bridge-inject-container" onClick={() => setShowDropdown(!showDropdown)}>
       <div className="mind-bridge-logo-small"></div>

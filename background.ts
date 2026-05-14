@@ -1,10 +1,28 @@
-export {}
+import { auth } from "~core/firebase"
+import { onAuthStateChanged } from "firebase/auth"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
 // State Management
-let currentIdentity = null
+let currentIdentity: any = null
 let currentBridgePrompt = null
+
+// Listen for Firebase Auth changes
+if (auth) {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      console.log("[Neural Engine] Firebase Auth Detected:", user.email)
+      currentIdentity = { 
+        ...currentIdentity, 
+        email: user.email,
+        uid: user.uid
+      }
+    } else {
+      console.log("[Neural Engine] No Firebase User detected.")
+      currentIdentity = null
+    }
+  })
+}
 
 // Initialize connections from storage
 const INITIAL_CONNECTIONS = {
@@ -35,18 +53,38 @@ const updateConnection = (id, status) => {
   })
 }
 
+import { addMemory } from "~core/api"
+
+// ... (existing auth and state management)
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 1. EXTRACT IDENTITY - Transform raw chat history into a professional persona
   if (request.type === "EXTRACT_IDENTITY") {
+    // BLOCKER: Do nothing if not signed in to Google
+    if (!currentIdentity?.email) {
+      console.log("[Neural Engine] Extraction blocked: No Google Identity found.")
+      return false
+    }
+
     console.log("[Neural Engine] Analyzing chat history to detect identity...")
     
     // In production, this would call Claude to "Who is this user?"
-    setTimeout(() => {
-      currentIdentity = {
+    setTimeout(async () => {
+      const identity = {
         role: "Senior Full-Stack Engineer specializing in Fintech",
         goal: "Building a secure B2B dashboard with React & Supabase",
         style: "Direct, code-focused, and highly technical"
       }
+      currentIdentity = { ...currentIdentity, ...identity }
+      
+      // Store in ChromaDB via FastAPI
+      await addMemory(
+        `User is a ${identity.role} working on ${identity.goal}`, 
+        "Personal", 
+        "context", 
+        ["identity", "profile"]
+      )
+
       sendResponse({ identity: currentIdentity })
     }, 1500)
     return true
@@ -54,8 +92,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 2. GENERATE BRIDGE - Handle short-term "thought teleportation"
   if (request.type === "GENERATE_BRIDGE") {
-    setTimeout(() => {
+    setTimeout(async () => {
       currentBridgePrompt = `Continue the architectural discussion about JWT auth...`
+      
+      // Store bridge in ChromaDB
+      await addMemory(
+        currentBridgePrompt, 
+        "Personal", 
+        "context", 
+        ["bridge", "temporary"]
+      )
+
       sendResponse({ bridgePrompt: currentBridgePrompt })
     }, 500)
     return true
@@ -75,6 +122,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 4. PLATFORM_SYNC - Called by content scripts when a user is active on a platform
   if (request.type === "PLATFORM_SYNC") {
+    // BLOCKER: Do nothing if not signed in to Google
+    if (!currentIdentity?.email) {
+      console.log("[Neural Engine] Sync blocked: No Google Identity found.")
+      return false
+    }
+
     const { platform, status, detectedEmail } = request.payload
     
     // Identity Verification Logic
@@ -93,8 +146,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false
   }
 
-  // 6. UPDATE_IDENTITY - Update the master identity (e.g. email)
-  if (request.type === "UPDATE_IDENTITY") {
-    currentIdentity = { ...currentIdentity, ...request.identity }
+  // 5. MANUAL_CONNECT - Initiate a connection by opening the platform
+  if (request.type === "MANUAL_CONNECT") {
+    const { url } = request.payload
+    chrome.tabs.create({ url })
     return false
   }
+
+  // 6. UPDATE_IDENTITY - Update the master identity (e.g. email)
+  if (request.type === "UPDATE_IDENTITY") {
+    if (currentIdentity) {
+      currentIdentity = { ...currentIdentity, ...request.identity }
+    }
+    return false
+  }
+})
