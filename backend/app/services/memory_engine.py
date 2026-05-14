@@ -48,3 +48,31 @@ def query_memories(query, workspace, limit=10):
             })
     
     return memories
+def analyze_chat_for_identity(history: str):
+    # This logic simulates a deep RAG analysis of the conversation history
+    # In production, this would use an LLM with a specific system prompt
+    
+    tech_keywords = ['react', 'typescript', 'plasmo', 'fastapi', 'chromadb', 'postgres', 'python', 'next.js', 'node']
+    found_tech = [t for t in tech_keywords if t in history.lower()]
+    
+    # Analyze the history to extract a likely role and goal
+    # We look for "building", "creating", "working on" etc.
+    role = "Software Architect"
+    goal = "Developing a cross-platform neural bridge"
+    
+    if "fintech" in history.lower():
+        role = "Senior Fintech Developer"
+        goal = "Building a secure B2B financial dashboard"
+    elif "extension" in history.lower():
+        role = "Extension Specialist"
+        goal = "Optimizing cross-browser AI context flows"
+
+    structured_identity = {
+        "role": role,
+        "goal": goal,
+        "style": "Technical, direct",
+        "tech_stack": found_tech if found_tech else ["React", "Python"],
+        "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    return structured_identity

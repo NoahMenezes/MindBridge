@@ -20,14 +20,21 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # local env files
+.env
 .env*.local
+backend/.env
 
+# build
 out/
 build/
 dist/
-
-# plasmo
 .plasmo
-
-# typescript
 .tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+
+# Databases
+chroma_store/

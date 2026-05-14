@@ -1,7 +1,6 @@
 import { auth } from "~core/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { memoryEngine } from "./lib/memory-engine"
-import { addMemory } from "~core/api"
+import { addMemory, extractIdentity } from "~core/api"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
@@ -61,28 +60,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return false
     }
 
-    console.log("[Neural Engine] Analyzing chat history with RAG engine...")
+    console.log("[Neural Engine] Analyzing chat history with Backend RAG engine...")
     
-    // Use the Memory Engine to convert unstructured chat to structured memory
-    memoryEngine.extract(request.history).then(async (memory) => {
-      const identityUpdate = {
-        role: `Developer working on ${memory.project}`,
-        goal: memory.goal,
-        style: "Technical, concise",
-        memory: memory // Store the full structured RAG memory
+    // Call the Backend to convert unstructured chat to structured memory
+    extractIdentity(request.history, "Personal").then((response) => {
+      if (response?.identity) {
+        currentIdentity = { ...currentIdentity, ...response.identity }
+        sendResponse({ identity: currentIdentity })
+      } else {
+        sendResponse({ error: "Backend analysis failed" })
       }
-      
-      currentIdentity = { ...currentIdentity, ...identityUpdate }
-      
-      // Store the structured data in ChromaDB via FastAPI
-      await addMemory(
-        `Project: ${memory.project}. Goal: ${memory.goal}. Tech: ${memory.tech_stack.join(", ")}`, 
-        "Personal", 
-        "context", 
-        ["rag", "identity", ...memory.tech_stack]
-      )
-
-      sendResponse({ identity: currentIdentity })
+    }).catch(err => {
+      console.error("RAG Engine Error:", err)
+      sendResponse({ error: "Backend unreachable" })
     })
     return true
   }

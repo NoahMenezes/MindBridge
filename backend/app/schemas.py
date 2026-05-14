@@ -89,6 +89,15 @@ class GetWorkspaceContextResponse(BaseModel):
     context: WorkspaceContext
     version: str
 
+class ExtractIdentityRequest(BaseModel):
+    history: str = Field(..., min_length=1)
+    workspace: WorkspaceId
+
+class ExtractIdentityResponse(BaseModel):
+    identity: dict
+    message: str
+    version: str
+
 class DeleteMemoryRequest(BaseModel):
     id: str = Field(..., min_length=1)
     workspace: WorkspaceId

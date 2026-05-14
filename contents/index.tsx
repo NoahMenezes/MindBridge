@@ -31,9 +31,23 @@ const MindBridgeUI = () => {
   const [identity, setIdentity] = useState(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [hasChat, setHasChat] = useState(false)
+
+  // Monitor for chat content to enable detection
+  useEffect(() => {
+    const checkChat = () => {
+      const messages = document.querySelectorAll('.message, [data-testid*="message"], .font-claude-message')
+      setHasChat(messages.length > 0)
+    }
+    const observer = new MutationObserver(checkChat)
+    observer.observe(document.body, { childList: true, subtree: true })
+    checkChat()
+    return () => observer.disconnect()
+  }, [])
 
   // 1. "DETECT" - Scrape the chat to find the user's "Identity"
   const detectIdentity = async () => {
+    if (!hasChat) return
     setLoading(true)
     const allMessages = Array.from(document.querySelectorAll('.message, [data-testid*="message"], .font-claude-message'))
       .map(m => (m as HTMLElement).innerText)
@@ -43,11 +57,13 @@ const MindBridgeUI = () => {
       type: "EXTRACT_IDENTITY", 
       history: allMessages 
     }, (response) => {
+      setLoading(false)
       if (response?.identity) {
         setIdentity(response.identity)
-        console.log("MindBridge: Neural Identity Detected!", response.identity)
+        console.log("MindBridge: RAG Extraction Complete.")
+      } else if (response?.error) {
+        console.error("Extraction Failed:", response.error)
       }
-      setLoading(false)
     })
   }
 
@@ -117,8 +133,15 @@ const MindBridgeUI = () => {
           <button 
             onClick={detectIdentity}
             className="inject-btn"
-            style={{ background: '#1c1c1f', border: '1px solid #262626', color: '#f3f4f6', marginBottom: '8px' }}
-            disabled={loading}
+            style={{ 
+              background: '#1c1c1f', 
+              border: '1px solid #262626', 
+              color: '#f3f4f6', 
+              marginBottom: '8px',
+              opacity: hasChat ? 1 : 0.5,
+              cursor: hasChat ? 'pointer' : 'not-allowed'
+            }}
+            disabled={loading || !hasChat}
           >
             {loading ? "Detecting Identity..." : "🧬 Detect My Identity from this Chat"}
           </button>

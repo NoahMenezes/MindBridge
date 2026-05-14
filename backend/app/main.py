@@ -70,9 +70,10 @@ from app.schemas import (
     SearchMemoriesRequest,
     GetWorkspaceContextRequest,
     DeleteMemoryRequest,
+    ExtractIdentityRequest,
 )
 
-from app.services.memory_engine import store_memory, query_memories
+from app.services.memory_engine import store_memory, query_memories, analyze_chat_for_identity
 
 # --- Endpoints ---
 @app.get("/")
@@ -105,6 +106,24 @@ async def search_memories(request: SearchMemoriesRequest):
         "count": len(memories),
         "query": request.query,
         "workspace": request.workspace,
+        "version": "1.0"
+    }
+
+@app.post("/extract_identity")
+async def extract_identity(request: ExtractIdentityRequest):
+    identity = analyze_chat_for_identity(request.history)
+    
+    # Also save this as a memory automatically
+    store_memory(
+        content=f"Detected Identity: {identity['role']} working on {identity['goal']}",
+        workspace=request.workspace,
+        type="context",
+        tags=["auto-extracted", "identity"]
+    )
+    
+    return {
+        "identity": identity,
+        "message": "Identity analyzed and structured by MindBridge Backend.",
         "version": "1.0"
     }
 

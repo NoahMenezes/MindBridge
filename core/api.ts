@@ -41,6 +41,20 @@ export const searchMemories = async (query: string, workspace: string, limit: nu
   }
 };
 
+export const extractIdentity = async (history: string, workspace: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/extract_identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history, workspace })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("API Error (extract_identity):", error);
+    return null;
+  }
+};
+
 export const getWorkspaceContext = async (workspace: string) => {
   try {
     const response = await fetch(`${API_BASE_URL}/get_workspace_context`, {
