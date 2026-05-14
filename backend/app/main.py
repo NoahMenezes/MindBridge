@@ -112,20 +112,35 @@ async def root():
 @app.post("/detect_identity")
 async def detect_identity_endpoint(request: DetectIdentityRequest):
     print(f"\n[DETECT_IDENTITY] Received payload from workspace: {request.workspace}")
-    for i, msg in enumerate(request.messages):
-        print(f"  {i+1}. [{msg.role.upper()}]: {msg.content[:50]}...")
-        
-    # Store structured data in the new table
+    
+    # 1. Prepare raw content for unstructured storage
+    raw_content = "\n\n".join([f"{m.role.upper()}: {m.content}" for m in request.messages])
+    
+    # 2. Store raw chat data (unstructured)
+    raw_result = store_raw_chat(
+        raw_content=raw_content,
+        workspace=request.workspace,
+        source=request.workspace.upper()
+    )
+    if raw_result["status"] == "error":
+        print(f"[ERROR] Raw Chat Store failed: {raw_result['message']}")
+        raise HTTPException(status_code=500, detail=f"Raw storage failed: {raw_result['message']}")
+    
+    # 3. Store structured data (JSON)
     db_result = store_structured_chat(
         messages=[m.dict() for m in request.messages], 
         workspace=request.workspace
     )
+    if db_result["status"] == "error":
+        print(f"[ERROR] Structured Chat Store failed: {db_result['message']}")
+        raise HTTPException(status_code=500, detail=f"Structured storage failed: {db_result['message']}")
     
     return {
         "status": "success",
-        "message": "Structured chat history received and stored in Supabase successfully.",
+        "message": "Both raw (unstructured) and structured JSON chat history received and stored successfully.",
         "count": len(request.messages),
         "workspace": request.workspace,
+        "raw_id": raw_result.get("id"),
         "db_id": db_result.get("id")
     }
 

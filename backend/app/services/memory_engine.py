@@ -1,7 +1,10 @@
+import os
 from app.db.chroma import get_collection
 from app.db.postgres import SessionLocal
 from app.db.models import User, Workspace as PostgresWorkspace, Memory as PostgresMemory, Identity, RawChatData, StructuredChatData
 from app.utils.llm import call_llm, extract_json
+
+
 import uuid
 from datetime import datetime, timezone
 
@@ -144,58 +147,97 @@ def get_workspace_context(workspace):
     finally:
         db.close()
 
+import httpx
+
+# Supabase REST configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
 def store_raw_chat(raw_content: str, workspace: str, source: str):
-    db = SessionLocal()
     try:
-        new_raw_chat = RawChatData(
-            workspace=workspace,
-            source=source,
-            raw_content=raw_content,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(new_raw_chat)
-        db.commit()
-        db.refresh(new_raw_chat)
-        return {"status": "success", "id": new_raw_chat.id}
+        # Use REST API (Port 443) to bypass DB connection issues
+        url = f"{SUPABASE_URL}/rest/v1/raw_chat_data"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        payload = {
+            "workspace": workspace,
+            "source": source,
+            "raw_content": raw_content,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        with httpx.Client() as client:
+            response = client.post(url, headers=headers, json=payload)
+            if response.status_code >= 400:
+                print(f"Supabase REST Error (Raw): {response.text}")
+                return {"status": "error", "message": response.text}
+            
+            data = response.json()
+            return {"status": "success", "id": data[0].get("id") if data else None}
     except Exception as e:
-        db.rollback()
+        print(f"Raw Chat Store Exception: {e}")
         return {"status": "error", "message": str(e)}
-    finally:
-        db.close()
 
 def store_structured_chat(messages: list, workspace: str):
-    db = SessionLocal()
     try:
-        new_structured_chat = StructuredChatData(
-            workspace=workspace,
-            messages=messages,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(new_structured_chat)
-        db.commit()
-        db.refresh(new_structured_chat)
-        return {"status": "success", "id": new_structured_chat.id}
+        # Use REST API (Port 443) to bypass DB connection issues
+        url = f"{SUPABASE_URL}/rest/v1/structured_chat_data"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        payload = {
+            "workspace": workspace,
+            "messages": messages,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        with httpx.Client() as client:
+            response = client.post(url, headers=headers, json=payload)
+            if response.status_code >= 400:
+                print(f"Supabase REST Error (Structured): {response.text}")
+                return {"status": "error", "message": response.text}
+            
+            data = response.json()
+            return {"status": "success", "id": data[0].get("id") if data else None}
     except Exception as e:
-        db.rollback()
-        print(f"Structured Chat Store Error: {e}")
+        print(f"Structured Chat Store Exception: {e}")
         return {"status": "error", "message": str(e)}
-    finally:
-        db.close()
 
 def get_recent_raw_chats(workspace: str, limit: int = 5):
-    db = SessionLocal()
     try:
-        chats = db.query(RawChatData).filter(RawChatData.workspace == workspace).order_by(RawChatData.created_at.desc()).limit(limit).all()
-        return [{
-            "id": c.id,
-            "source": c.source,
-            "snippet": c.raw_content[:150] + "...",
-            "created_at": c.created_at.isoformat()
-        } for c in chats]
+        url = f"{SUPABASE_URL}/rest/v1/raw_chat_data"
+        params = {
+            "workspace": f"eq.{workspace}",
+            "order": "created_at.desc",
+            "limit": limit
+        }
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}"
+        }
+        
+        with httpx.Client() as client:
+            response = client.get(url, headers=headers, params=params)
+            if response.status_code >= 400:
+                return []
+            
+            chats = response.json()
+            return [{
+                "id": c.get("id"),
+                "source": c.get("source"),
+                "snippet": (c.get("raw_content") or "")[:150] + "...",
+                "created_at": c.get("created_at")
+            } for c in chats]
     except Exception as e:
+        print(f"Get Recent Chats Error: {e}")
         return []
-    finally:
-        db.close()
 
 def analyze_chat_for_identity(history: str, workspace: str = "Personal"):
     relevant_memories = query_memories(history[:500], workspace, limit=2)
