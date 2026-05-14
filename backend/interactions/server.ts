@@ -1,8 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config({ path: ".env" });
-import express from "express";
-import cors from "cors";
-import { getMemories, getPageContent } from "./notion";
+require("dotenv").config({ path: ".env" });
+const express = require("express");
+const cors = require("cors");
+const { getMemories, getPageContent } = require("./notion");
 
 const app = express();
 
@@ -10,7 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/notion/memories", async (req: express.Request, res: express.Response) => {
+app.get("/notion/memories", async (req, res) => {
     try {
         const data = await getMemories();
         res.json(data);
@@ -20,7 +19,7 @@ app.get("/notion/memories", async (req: express.Request, res: express.Response) 
     }
 });
 
-app.post("/notion/page", async (req: express.Request, res: express.Response) => {
+app.post("/notion/page", async (req, res) => {
     try {
         const { pageId } = req.body;
         if (!pageId) return res.status(400).json({ error: "pageId is required" });

@@ -15,8 +15,8 @@ const platforms = [
 function IndexPopup() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("identity")
-  const [identity, setIdentity] = useState<any>(null)
-  const [user, setUser] = useState<any>(null)
+  const [identity, setIdentity] = useState(null)
+  const [user, setUser] = useState(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [selectedWorkspace, setSelectedWorkspace] = useState("Personal")
   const [connections, setConnections] = useState({
@@ -53,7 +53,7 @@ function IndexPopup() {
       setLoading(false)
     })
 
-    const listener = (message: any) => {
+    const listener = (message) => {
       if (message.type === "CONNECTIONS_UPDATED") {
         setConnections(message.connections)
       }
@@ -114,7 +114,7 @@ function IndexPopup() {
 
   const handleSignOut = () => auth && signOut(auth)
 
-  const handleConnect = (id: string) => {
+  const handleConnect = (id) => {
     const platform = platforms.find(p => p.id === id)
     if (platform) {
       setConnections(prev => ({ ...prev, [id]: 'syncing' }))

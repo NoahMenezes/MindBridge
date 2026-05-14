@@ -1,10 +1,10 @@
-import { Client } from "@notionhq/client";
+const { Client } = require("@notionhq/client");
 
 const notion = new Client({
     auth: process.env.NOTION_TOKEN
 });
 
-export async function getMemories() {
+async function getMemories() {
     try {
         const response = await notion.databases.query({
             database_id: process.env.NOTION_DB_ID
@@ -21,7 +21,7 @@ export async function getMemories() {
         return [];
     }
 }
-export async function getPageContent(pageId: string) {
+async function getPageContent(pageId) {
     try {
         const page = await notion.pages.retrieve({ page_id: pageId });
         const title = page.properties.title?.title[0]?.plain_text || "Untitled Notion Page";
@@ -44,3 +44,5 @@ export async function getPageContent(pageId: string) {
         throw error;
     }
 }
+
+module.exports = { getMemories, getPageContent };

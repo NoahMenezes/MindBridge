@@ -6,7 +6,7 @@
   "author": "Noah Menezes 2006noahmenezes@gmail.com",
   "scripts": {
     "dev": "concurrently \"plasmo dev\" \"cd backend && .\\.venv\\Scripts\\python run.py\" \"npm run dev:interactions\"",
-    "dev:interactions": "ts-node backend/interactions/server.ts",
+    "dev:interactions": "node backend/interactions/server.js",
     "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && .\\.venv\\Scripts\\python run.py\" \"npm run dev:interactions\"",
     "build": "plasmo build",
     "package": "plasmo package",
