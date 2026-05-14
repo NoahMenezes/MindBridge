@@ -1,0 +1,19 @@
+{
+  "tool": "add_memory",
+  "version": "1.0",
+  "request": {
+    "content": "Discussed OAuth 2.0 PKCE flow for the MindBridge Chrome extension. Agreed to use code_challenge_method=S256.",
+    "workspace": "github.com",
+    "type": "project",
+    "tags": ["auth", "security", "oauth"]
+  },
+  "response": {
+    "id": "mem_9f2a3c1d",
+    "workspace": "github.com",
+    "type": "project",
+    "tags": ["auth", "security", "oauth"],
+    "created_at": "2026-05-14T11:29:32+05:30",
+    "message": "Memory stored successfully.",
+    "version": "1.0"
+  }
+}
