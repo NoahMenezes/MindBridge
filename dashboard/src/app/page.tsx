@@ -14,21 +14,52 @@ interface Memory {
   summary?: string
   type: string
   timestamp: string
+  tags?: string[]
 }
+
+const platforms = [
+  {
+    id: "chatgpt",
+    name: "ChatGPT",
+    icon: "🤖",
+    color: "#10a37f",
+    url: "https://chatgpt.com"
+  },
+  {
+    id: "claude",
+    name: "Claude.ai",
+    icon: "🎭",
+    color: "#d97757",
+    url: "https://claude.ai"
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    icon: "✨",
+    color: "#4285f4",
+    url: "https://gemini.google.com"
+  },
+  {
+    id: "copilot",
+    name: "Github Copilot",
+    icon: "🚀",
+    color: "#ffffff",
+    url: "https://github.com/copilot"
+  }
+]
 
 export default function Dashboard() {
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(true)
   const [activeWorkspace, setActiveWorkspace] = useState("Personal")
-
   const [searchQuery, setSearchQuery] = useState("")
 
   const fetchData = async (query = "") => {
     try {
-      // 1. Fetch Identity
+      // 1. Fetch Identity (or recent chats)
       const chatsRes = await fetch(`http://localhost:8000/recent_chats?workspace=${activeWorkspace}`)
-      const chatsData = await chatsRes.json()
+      if (!chatsRes.ok) throw new Error("Backend offline")
       
       // 2. Fetch Memories
       const memoriesRes = await fetch(`http://localhost:8000/search_memories`, {
@@ -41,14 +72,20 @@ export default function Dashboard() {
       setMemories(memoriesData.memories || [])
       
       if (memoriesData.memories?.length > 0) {
-        const idMemory = memoriesData.memories.find((m: any) => m.type === "context" || m.tags?.includes("identity"))
+        const idMemory = memoriesData.memories.find((m: any) => 
+          m.type === "context" || (m.tags && m.tags.includes("identity"))
+        )
         if (idMemory) {
-          setIdentity({ role: "Neural Engineer", goal: "Synchronizing Intelligence" })
+          // Extract role/goal from content if possible
+          setIdentity({ 
+            role: idMemory.content.includes("Identity:") ? idMemory.content.split(":")[1].split("working")[0].trim() : "Neural Engineer", 
+            goal: idMemory.content.includes("working on") ? idMemory.content.split("working on")[1].trim() : "Synchronizing Intelligence" 
+          })
         }
       }
 
     } catch (error) {
-      console.error("Dashboard fetch error:", error)
+      console.log("Dashboard fetch suppressed error:", error)
     } finally {
       setLoading(false)
     }
@@ -60,8 +97,12 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [activeWorkspace, searchQuery])
 
+  const handleConnect = (url: string) => {
+    window.open(url, "_blank")
+  }
+
   return (
-    <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '48px' }}>
         <div>
@@ -83,7 +124,8 @@ export default function Dashboard() {
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontSize: '13px',
-                fontWeight: 600
+                fontWeight: 600,
+                transition: 'all 0.2s ease'
               }}
             >
               {w}
@@ -94,7 +136,7 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
         
-        {/* LEFT COLUMN: IDENTITY & STATUS */}
+        {/* LEFT COLUMN: IDENTITY & PLATFORMS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
           {/* IDENTITY CARD */}
@@ -117,27 +159,37 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* CONNECTIVITY STATUS */}
+          {/* PLATFORM CONNECTIONS */}
           <section className="glass-panel animate-fade-in" style={{ animationDelay: '0.1s' }}>
             <div style={{ fontSize: '10px', color: 'var(--accent-secondary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '20px', letterSpacing: '0.1em' }}>
-              Node Connectivity
+              Neural Network Nodes
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {[
-                { name: 'ChatGPT', status: 'Online', icon: '🤖' },
-                { name: 'Claude.ai', status: 'Online', icon: '🎭' },
-                { name: 'Ollama (Local)', status: 'Active', icon: '🦙' },
-                { name: 'ChromaDB', status: 'Connected', icon: '📁' },
-              ].map(node => (
-                <div key={node.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {platforms.map(p => (
+                <div key={p.id} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px'
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '18px' }}>{node.icon}</span>
-                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{node.name}</span>
+                    <span style={{ fontSize: '20px' }}>{p.icon}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>{p.name}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div className="pulse" style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)' }}></div>
-                    <span style={{ fontSize: '11px', color: 'var(--success)', fontWeight: 600 }}>{node.status}</span>
-                  </div>
+                  <button 
+                    onClick={() => handleConnect(p.url)}
+                    className="neural-button"
+                    style={{ 
+                      padding: '6px 14px', 
+                      fontSize: '11px',
+                      background: activeWorkspace.toLowerCase().includes(p.id) ? 'var(--success)' : undefined
+                    }}
+                  >
+                    Connect
+                  </button>
                 </div>
               ))}
             </div>
@@ -175,7 +227,7 @@ export default function Dashboard() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {memories.length > 0 ? memories.map((memory, idx) => (
+              {memories.length > 0 ? memories.map((memory) => (
                 <div key={memory.id} style={{ 
                   padding: '16px', 
                   background: 'rgba(255,255,255,0.02)', 
@@ -188,7 +240,7 @@ export default function Dashboard() {
                       {memory.type}
                     </span>
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      {new Date(memory.timestamp).toLocaleTimeString()}
+                      {memory.timestamp ? new Date(memory.timestamp).toLocaleTimeString() : 'Recent'}
                     </span>
                   </div>
                   <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#e5e7eb' }}>
@@ -213,10 +265,6 @@ export default function Dashboard() {
         <div>MindBridge Neural Engine v0.1.0</div>
         <div>System Latency: 12ms | Storage: ChromaDB Vector Cloud</div>
       </footer>
-
-      <style jsx global>{`
-        body { margin: 0; }
-      `}</style>
     </div>
   )
 }
