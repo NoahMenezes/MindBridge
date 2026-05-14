@@ -239,6 +239,43 @@ def get_recent_raw_chats(workspace: str, limit: int = 5):
         print(f"Get Recent Chats Error: {e}")
         return []
 
+def store_identity_profile(traits: dict, workspace: str):
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/identity_profiles"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        
+        # Prepare payload matching the new identity_profiles schema
+        payload = {
+            "workspace": workspace,
+            "name": traits.get("name"),
+            "profession": traits.get("profession"),
+            "interests": traits.get("interests", []),
+            "projects": traits.get("projects", []),
+            "goals": traits.get("goals", []),
+            "skills": traits.get("skills", []),
+            "technologies": traits.get("technologies", []),
+            "communication_style": traits.get("communication_style"),
+            "recurring_themes": traits.get("recurring_themes", []),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        with httpx.Client() as client:
+            response = client.post(url, headers=headers, json=payload)
+            if response.status_code >= 400:
+                print(f"Supabase REST Error (Identity): {response.text}")
+                return {"status": "error", "message": response.text}
+            
+            data = response.json()
+            return {"status": "success", "id": data[0].get("id") if data else None}
+    except Exception as e:
+        print(f"Identity Profile Store Exception: {e}")
+        return {"status": "error", "message": str(e)}
+
 def analyze_chat_for_identity(history: str, workspace: str = "Personal"):
     relevant_memories = query_memories(history[:500], workspace, limit=2)
     context = "\n".join([m['content'] for m in relevant_memories])

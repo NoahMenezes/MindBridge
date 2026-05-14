@@ -43,7 +43,7 @@ class Memory(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class Identity(Base):
-    __tablename__ = "identities"
+    __tablename__ = "identity_profiles"
     id = Column(Integer, primary_key=True, index=True)
     workspace = Column(String, index=True)
     role = Column(String)

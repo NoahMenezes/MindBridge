@@ -99,10 +99,13 @@ from app.services.memory_engine import (
     analyze_chat_for_identity, 
     store_raw_chat, 
     store_structured_chat,
+    store_identity_profile,
     get_recent_raw_chats,
     get_workspace_context as fetch_workspace_context,
     delete_memory as remove_memory
 )
+
+from app.services.llm_extractor import extract_identity_from_chats
 
 
 @app.get("/")
@@ -135,9 +138,17 @@ async def detect_identity_endpoint(request: DetectIdentityRequest):
         print(f"[ERROR] Structured Chat Store failed: {db_result['message']}")
         raise HTTPException(status_code=500, detail=f"Structured storage failed: {db_result['message']}")
     
+    # 4. Extract Identity Traits using llama3.2 via Ollama
+    identity_traits = extract_identity_from_chats([m.dict() for m in request.messages])
+    
+    # 5. Store Identity Profile in Supabase
+    identity_result = store_identity_profile(identity_traits, request.workspace)
+    
     return {
         "status": "success",
-        "message": "Both raw (unstructured) and structured JSON chat history received and stored successfully.",
+        "message": "Identity detected, profiled, and stored successfully.",
+        "identity": identity_traits,
+        "identity_id": identity_result.get("id"),
         "count": len(request.messages),
         "workspace": request.workspace,
         "raw_id": raw_result.get("id"),
