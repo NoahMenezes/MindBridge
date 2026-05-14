@@ -1,0 +1,12 @@
+{
+  "title": "Docs",
+  "pages": [
+    "index",
+    "---Overview---",
+    "features",
+    "business-model",
+    "---Resources---",
+    "developer-guide",
+    "api-reference"
+  ]
+}

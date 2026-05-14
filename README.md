@@ -1,52 +1,53 @@
-This is a [Plasmo extension](https://docs.plasmo.com/) project bootstrapped with [`plasmo init`](https://www.npmjs.com/package/plasmo).
+# MindBridge: Neural Operating System for AI
 
-## Getting Started
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Plasmo](https://img.shields.io/badge/Framework-Plasmo-blueviolet)](https://plasmo.com)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)](https://fastapi.tiangolo.com)
 
-First, run the development server:
+MindBridge is a cross-platform memory and identity engine for AI tools. It unifies your context between ChatGPT, Claude, Gemini, and Copilot.
 
-```bash
-pnpm dev
-# or
-npm run dev
-```
+## ✨ Features
 
-Open your browser and load the appropriate development build. For example, if you are developing for the chrome browser, using manifest v3, use: `build/chrome-mv3-dev`.
+- **Neural Identity**: Auto-extraction of user roles and goals.
+- **Vector Memory**: Long-term RAG powered by ChromaDB.
+- **Bridge Prompts**: Seamless context passing between AI platforms.
+- **Neural Mindmap**: 3D visualization of your cognitive nodes.
 
-You can start editing the popup by modifying `popup.tsx`. It should auto-update as you make changes. To add an options page, simply add a `options.tsx` file to the root of the project, with a react component default exported. Likewise to add a content page, add a `content.ts` file to the root of the project, importing some module and do some logic, then reload the extension on your browser.
+## 🚀 Quick Start
 
-For further guidance, [visit our Documentation](https://docs.plasmo.com/)
+1.  **Clone & Install**
+    ```bash
+    git clone https://github.com/NoahMenezes/MindBridge.git
+    cd MindBridge
+    pnpm install
+    ```
 
-## Making production build
+2.  **Setup Backend**
+    ```bash
+    cd backend
+    python3 -m venv venv
+    ./venv/bin/pip install -r requirements.txt
+    ```
 
-Run the following:
+3.  **Run Development Environment**
+    ```bash
+    pnpm dev
+    ```
 
-```bash
-pnpm build
-# or
-npm run build
-```
+## 🛠 Tech Stack
 
-This should create a production bundle for your extension, ready to be zipped and published to the stores.
+- **Frontend**: React 18, Plasmo, Tailwind CSS.
+- **Backend**: FastAPI, ChromaDB, SQLAlchemy.
+- **Auth**: Firebase Google Auth.
+- **Docs**: Fumadocs (Next.js).
 
-## Submit to the webstores
+## 📄 Documentation
 
-The easiest way to deploy your Plasmo extension is to use the built-in [bpp](https://bpp.browser.market) GitHub action. Prior to using this action however, make sure to build your extension and upload the first version to the store to establish the basic credentials. Then, simply follow [this setup instruction](https://docs.plasmo.com/framework/workflows/submit) and you should be on your way for automated submission!
-# MindBridge
+Full documentation is available at `http://localhost:3000` when running the project.
 
-A cross-platform memory operating system for AI tools.
+## 🤝 Contributing
 
-## MCP Protocol Authority (Person 2A)
-
-The core communication protocol is owned by **Person 2A**. All changes to request/response formats, tool definitions, and validation schemas must be coordinated through this layer.
-
-**Location**: `packages/mcp-contracts/`
-
-### Ownership Rules
-1. **Source of Truth**: `packages/mcp-contracts` is the only place where API shapes are defined.
-2. **No Manual Typing**: All team members MUST import types and validation from this package.
-3. **Breaking Changes**: Requires a version bump in `constants/versions.ts`.
+Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
 
 ---
-
-## Getting Started
-...
+Built with 🧠 by [Noah Menezes](https://github.com/NoahMenezes)

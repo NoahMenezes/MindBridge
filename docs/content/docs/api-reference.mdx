@@ -1,0 +1,15 @@
+---
+title: API Reference
+description: Technical details for MindBridge endpoints.
+---
+
+# API Reference
+
+## Endpoints
+- `POST /detect_identity`: Analyzes chats to extract persona.
+- `POST /add_memory`: Stores semantic vectors.
+- `POST /search_memories`: RAG-powered retrieval.
+- `POST /store_raw_chat`: High-fidelity history logs.
+
+## Architecture
+MindBridge uses a **Neural Sync** architecture, where browser events are intercepted and processed by a centralized RAG engine for persistent cross-platform context.

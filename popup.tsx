@@ -263,6 +263,7 @@ function IndexPopup() {
           <span>Systems Online</span>
         </div>
         <div style={{ display: 'flex', gap: '12px', color: 'var(--text-muted)' }}>
+          <span style={{ cursor: 'pointer' }} onClick={() => window.open('http://localhost:3000', '_blank')}>Docs</span>
           <span style={{ cursor: 'pointer' }}>Settings</span>
         </div>
       </footer>

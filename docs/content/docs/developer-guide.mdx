@@ -1,0 +1,21 @@
+---
+title: Developer Guide
+description: Getting started with MindBridge development.
+---
+
+# Developer Guide
+
+## Setup
+1. **Clone & Install**: `pnpm install`
+2. **Backend**: `cd backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
+3. **Environment**: Create a `.env` file in `backend/` with your API keys.
+
+## Folder Structure
+- `backend/`: FastAPI engine & ChromaDB logic.
+- `contents/`: Browser interaction scripts.
+- `docs/`: This documentation site.
+- `popup.tsx`: Extension UI.
+
+## Tech Stack
+- **Frontend**: Plasmo, React, Tailwind.
+- **Backend**: FastAPI, ChromaDB, Supabase.
