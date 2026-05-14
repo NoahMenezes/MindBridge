@@ -4,6 +4,12 @@ import os
 import re
 from typing import List, Dict, Any
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Ensure env is loaded
+env_path = os.path.join(os.path.dirname(__file__), "../../.env")
+load_dotenv(env_path)
+load_dotenv()
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = os.getenv("OLLAMA_MODEL", "llama3.2:latest")

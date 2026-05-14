@@ -133,6 +133,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   
+  if (request.type === "OPEN_SIDE_PANEL") {
+    // Instead of Chrome Side Panel, we now trigger the custom in-page sidebar
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: "SHOW_CUSTOM_SIDEBAR" })
+        sendResponse({ success: true })
+      } else {
+        sendResponse({ success: false, error: "No active tab" })
+      }
+    })
+    return true
+  }
+
+  if (request.type === "NEURAL_BRIDGE_INITIATED") {
+    addMemory(
+      "Neural bridge connection initiated from side panel",
+      "Personal",
+      "event",
+      ["neural-bridge", "sync"]
+    ).then(() => {
+      sendResponse({ status: "success" })
+    })
+    return true
+  }
+
   if (request.type === "PLATFORM_SYNC") {
     const { platform, status, detectedEmail } = request.payload
     

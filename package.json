@@ -5,9 +5,10 @@
   "description": "A cross-platform memory operating system for AI tools.",
   "author": "Noah Menezes 2006noahmenezes@gmail.com",
   "scripts": {
-    "dev": "concurrently \"plasmo dev\" \"cd backend && ./venv/bin/python run.py\"",
-    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && ./venv/bin/python run.py\"",
+    "dev": "concurrently \"plasmo dev\" \"cd backend && ./venv/bin/python run.py\" \"cd dashboard && npm run dev\"",
+    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && ./venv/bin/python run.py\" \"cd dashboard && npm run dev\"",
     "build": "plasmo build",
+    "dashboard:dev": "cd dashboard && npm run dev",
     "package": "plasmo package",
     "test": "npx tsx --test packages/mcp-contracts/tests/schema.test.ts packages/mcp-contracts/tests/validation.test.ts packages/mcp-contracts/tests/compatibility.test.ts",
     "play": "npx tsx packages/mcp-contracts/playground.ts"
@@ -37,7 +38,11 @@
     ],
     "permissions": [
       "storage",
-      "tabs"
-    ]
+      "tabs",
+      "sidePanel"
+    ],
+    "side_panel": {
+      "default_path": "sidepanel.html"
+    }
   }
 }

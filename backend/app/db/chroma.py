@@ -1,8 +1,11 @@
 
+# pyrefly: ignore [missing-import]
 import chromadb
 
+# pyrefly: ignore [missing-import]
 from chromadb.utils import embedding_functions
 import os
+# pyrefly: ignore [missing-import]
 import google.generativeai as genai
 from dotenv import load_dotenv
 

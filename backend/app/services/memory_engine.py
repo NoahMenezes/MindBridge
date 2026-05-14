@@ -1,12 +1,19 @@
 import os
+import uuid
+from datetime import datetime, timezone
+from dotenv import load_dotenv
 from app.db.chroma import get_collection
 from app.db.postgres import SessionLocal
 from app.db.models import User, Workspace as PostgresWorkspace, Memory as PostgresMemory, Identity, RawChatData, StructuredChatData
 from app.utils.llm import call_llm, extract_json
 
+# Ensure env is loaded
+env_path = os.path.join(os.path.dirname(__file__), "../../.env")
+load_dotenv(env_path)
+load_dotenv()
 
-import uuid
-from datetime import datetime, timezone
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 collection = get_collection()
 
@@ -149,9 +156,7 @@ def get_workspace_context(workspace):
 
 import httpx
 
-# Supabase REST configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+# Supabase REST configuration removed from here as it's defined above
 
 def store_raw_chat(raw_content: str, workspace: str, source: str):
     try:

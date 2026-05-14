@@ -263,3 +263,54 @@ body {
   border-radius: 50%;
   box-shadow: 0 0 8px var(--success);
 }
+
+/* Side Panel Styles */
+.sidepanel-container {
+  width: 100%;
+  height: 100vh;
+  background-color: var(--bg);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.sidepanel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--bg) 0%, #000 100%);
+}
+
+.neural-sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--accent-soft), transparent);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.2);
+}
+
+.sync-pulse {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--success);
+  animation: pulse 2s infinite;
+}
+
+.sync-text {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--success);
+  text-transform: uppercase;
+}
