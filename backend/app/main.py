@@ -17,7 +17,17 @@ try:
 except Exception as e:
     print(f"Warning: Could not create Postgres tables: {e}")
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def format_error(status_code: int, code: str, message: str, details: dict = None):
@@ -79,7 +89,8 @@ from app.schemas import (
     GetWorkspaceContextRequest,
     DeleteMemoryRequest,
     ExtractIdentityRequest,
-    StoreRawChatRequest
+    StoreRawChatRequest,
+    DetectIdentityRequest
 )
 
 from app.services.memory_engine import (
@@ -87,6 +98,7 @@ from app.services.memory_engine import (
     query_memories, 
     analyze_chat_for_identity, 
     store_raw_chat, 
+    store_structured_chat,
     get_recent_raw_chats,
     get_workspace_context as fetch_workspace_context,
     delete_memory as remove_memory
@@ -96,6 +108,26 @@ from app.services.memory_engine import (
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "MindBridge AI Memory Engine Running"}
+
+@app.post("/detect_identity")
+async def detect_identity_endpoint(request: DetectIdentityRequest):
+    print(f"\n[DETECT_IDENTITY] Received payload from workspace: {request.workspace}")
+    for i, msg in enumerate(request.messages):
+        print(f"  {i+1}. [{msg.role.upper()}]: {msg.content[:50]}...")
+        
+    # Store structured data in the new table
+    db_result = store_structured_chat(
+        messages=[m.dict() for m in request.messages], 
+        workspace=request.workspace
+    )
+    
+    return {
+        "status": "success",
+        "message": "Structured chat history received and stored in Supabase successfully.",
+        "count": len(request.messages),
+        "workspace": request.workspace,
+        "db_id": db_result.get("id")
+    }
 
 @app.post("/add_memory", status_code=201)
 async def add_memory(request: AddMemoryRequest):

@@ -59,3 +59,10 @@ class RawChatData(Base):
     source = Column(String) 
     raw_content = Column(Text)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class StructuredChatData(Base):
+    __tablename__ = "structured_chat_data"
+    id = Column(Integer, primary_key=True, index=True)
+    workspace = Column(String, index=True)
+    messages = Column(JSON) # Stores the list of structured message objects
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

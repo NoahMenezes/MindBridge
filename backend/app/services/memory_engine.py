@@ -1,6 +1,6 @@
 from app.db.chroma import get_collection
 from app.db.postgres import SessionLocal
-from app.db.models import User, Workspace as PostgresWorkspace, Memory as PostgresMemory, Identity, RawChatData
+from app.db.models import User, Workspace as PostgresWorkspace, Memory as PostgresMemory, Identity, RawChatData, StructuredChatData
 from app.utils.llm import call_llm, extract_json
 import uuid
 from datetime import datetime, timezone
@@ -159,6 +159,25 @@ def store_raw_chat(raw_content: str, workspace: str, source: str):
         return {"status": "success", "id": new_raw_chat.id}
     except Exception as e:
         db.rollback()
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+def store_structured_chat(messages: list, workspace: str):
+    db = SessionLocal()
+    try:
+        new_structured_chat = StructuredChatData(
+            workspace=workspace,
+            messages=messages,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.add(new_structured_chat)
+        db.commit()
+        db.refresh(new_structured_chat)
+        return {"status": "success", "id": new_structured_chat.id}
+    except Exception as e:
+        db.rollback()
+        print(f"Structured Chat Store Error: {e}")
         return {"status": "error", "message": str(e)}
     finally:
         db.close()

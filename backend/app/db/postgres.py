@@ -5,11 +5,12 @@ import os
 from dotenv import load_dotenv
 
 
-env_path = os.path.join(os.path.dirname(__file__), "../../../.env")
+env_path = os.path.join(os.path.dirname(__file__), "../../.env")
 load_dotenv(env_path)
 load_dotenv() 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost/mindbridge")
+print(f"[DB] Using database host: {DATABASE_URL.split('@')[-1].split(':')[0]}")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

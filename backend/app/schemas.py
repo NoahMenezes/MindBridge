@@ -113,3 +113,13 @@ class StoreRawChatRequest(BaseModel):
     raw_content: str = Field(..., min_length=1)
     workspace: WorkspaceId
     source: str = "Unknown"
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    workspace: Optional[str] = None
+    timestamp: Optional[int] = None
+
+class DetectIdentityRequest(BaseModel):
+    messages: List[ChatMessage]
+    workspace: WorkspaceId = "default"

@@ -92,3 +92,17 @@ export const getWorkspaceContext = async (workspace: string) => {
     return null;
   }
 };
+
+export const detectIdentityApi = async (messages: any[], workspace: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/detect_identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, workspace })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("API Error (detect_identity):", error);
+    return { status: "error", error: "Backend unreachable" };
+  }
+};

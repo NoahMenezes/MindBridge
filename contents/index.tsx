@@ -2,6 +2,13 @@ import type { PlasmoCSConfig, PlasmoGetInlineAnchor } from "plasmo"
 import { useEffect, useState } from "react"
 import cssText from "data-text:./style.css"
 
+export interface StructuredMessage {
+  role: "user" | "assistant";
+  content: string;
+  workspace: string;
+  timestamp: number;
+}
+
 export const config: PlasmoCSConfig = {
   matches: ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"]
 }
@@ -54,48 +61,124 @@ const MindBridgeUI = () => {
     })
   }
 
-  const getChatHistory = () => {
-    const messageNodes = Array.from(document.querySelectorAll('.message, [data-testid*="message"], .font-claude-message, [class*="message-content"]'))
-    const recentNodes = messageNodes.slice(-15) 
+  /**
+   * extractStructuredChat
+   * 
+   * A robust DOM parsing pipeline that transforms raw page elements into 
+   * clean, structured JSON objects. 
+   * 
+   * Features:
+   * 1. Multi-platform selector support (ChatGPT/Claude)
+   * 2. Content normalization (whitespace cleaning, UI artifact removal)
+   * 3. Role mapping (user/assistant)
+   * 4. Metadata injection (platform, synthetic timestamps)
+   * 5. Deduplication (prevents redundant memory storage)
+   */
+  const extractStructuredChat = (): StructuredMessage[] => {
+    const messages: StructuredMessage[] = []
+    const now = Date.now()
+    const workspace = window.location.hostname.includes("chatgpt") ? "chatgpt" : 
+                      window.location.hostname.includes("claude") ? "claude" : "gemini"
+
+    // --- PHASE 1: DOM EXTRACTION ---
+    if (workspace === "chatgpt") {
+      const chatgptNodes = document.querySelectorAll('div[data-message-author-role]')
+      chatgptNodes.forEach((node, index) => {
+        const roleAttr = node.getAttribute('data-message-author-role')
+        let rawContent = (node as HTMLElement).innerText || ""
+        
+        // --- PHASE 2: DATA CLEANING ---
+        // Remove zero-width spaces, normalize whitespace, and trim UI artifacts
+        const cleanContent = rawContent
+          .replace(/[\u200B-\u200D\uFEFF]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+        
+        // --- PHASE 3: NORMALIZATION ---
+        if (cleanContent.length > 0 && (roleAttr === 'user' || roleAttr === 'assistant')) {
+          messages.push({
+            role: roleAttr,
+            content: cleanContent,
+            workspace: workspace,
+            timestamp: now - ((chatgptNodes.length - index) * 1000)
+          })
+        }
+      })
+    } 
+    else if (workspace === "claude") {
+      const claudeNodes = document.querySelectorAll('.font-claude-message, .font-user-message, [class*="message-content"]')
+      claudeNodes.forEach((node, index) => {
+        const isUser = node.classList.contains('font-user-message') || !!node.closest('.chat-message-user')
+        let rawContent = (node as HTMLElement).innerText || ""
+        const cleanContent = rawContent
+          .replace(/[\u200B-\u200D\uFEFF]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+
+        if (cleanContent.length > 0) {
+          messages.push({
+            role: isUser ? 'user' : 'assistant',
+            content: cleanContent,
+            workspace: workspace,
+            timestamp: now - ((claudeNodes.length - index) * 1000)
+          })
+        }
+      })
+    }
+
+    // --- PHASE 4: DEDUPLICATION ---
+    // Prevent empty messages and duplicate entries from triggering multiple DB writes
+    const uniqueMessages = []
+    const seenContent = new Set()
     
-    return recentNodes
-      .map(m => (m as HTMLElement).innerText)
-      .filter(text => text.trim().length > 10)
-      .join("\n\n")
+    for (const msg of messages) {
+      if (!seenContent.has(msg.content)) {
+        seenContent.add(msg.content)
+        uniqueMessages.push(msg)
+      }
+    }
+
+    console.log("[MindBridge] Pipeline Output:", uniqueMessages)
+    return uniqueMessages.slice(-20) 
   }
 
   const detectIdentity = async () => {
     if (!hasChat) return
     setLoading(true)
-    const history = getChatHistory()
+    const structuredPayload = extractStructuredChat()
     
+    console.log("[MindBridge] Sending payload to background script...")
     chrome.runtime.sendMessage({ 
-      type: "EXTRACT_IDENTITY", 
-      history: history 
+      type: "DETECT_IDENTITY", 
+      messages: structuredPayload,
+      workspace: structuredPayload[0]?.workspace || "Personal"
     }, (response) => {
       setLoading(false)
-      if (response?.identity) {
-        setIdentity(response.identity)
-        setShowSidebar(true) 
-        fetchRecentChats()
-      } else if (response?.error) {
-        console.error("Extraction Failed:", response.error)
+      console.log("[MindBridge] Backend Response:", response)
+      if (response?.status === "success") {
+        alert("Structured identity payload logged successfully on backend!")
+      } else {
+        console.error("Transmission Failed:", response?.error)
       }
     })
   }
 
   const captureAndSync = async () => {
     setSyncing(true)
-    const history = getChatHistory()
-    const workspace = "Personal"
-    const source = window.location.hostname.includes("chatgpt") ? "ChatGPT" : 
-                  window.location.hostname.includes("claude") ? "Claude" : "Gemini"
+    const structuredPayload = extractStructuredChat()
+    
+    // For raw unstructured storage, convert to readable text
+    const plainTextPayload = structuredPayload
+      .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+      .join("\n\n")
+      
+    const workspace = structuredPayload[0]?.workspace || "Personal"
 
     chrome.runtime.sendMessage({
       type: "STORE_RAW_CHAT",
-      raw_content: history,
+      raw_content: plainTextPayload,
       workspace: workspace,
-      source: source
+      source: workspace.toUpperCase()
     }, (response) => {
       if (response?.success) {
         injectUniversalContext()
@@ -162,7 +245,7 @@ const MindBridgeUI = () => {
               disabled={loading || !hasChat}
             >
               <span className="icon">🧬</span>
-              <span className="text">{loading ? "Analyzing..." : "Detect My Identity from this Chat"}</span>
+              <span className="text">{loading ? "Analyzing..." : "Detect"}</span>
               {loading && <div className="loader"></div>}
             </button>
 
@@ -172,7 +255,7 @@ const MindBridgeUI = () => {
               disabled={syncing || (!identity && !hasChat)}
             >
               <span className="icon">🚀</span>
-              <span className="text">{syncing ? "Syncing..." : "Sync Identity to this Chat"}</span>
+              <span className="text">{syncing ? "Syncing..." : "Connect"}</span>
               {syncing && <div className="loader white"></div>}
             </button>
           </div>

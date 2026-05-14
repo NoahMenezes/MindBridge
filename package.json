@@ -6,6 +6,7 @@
   "author": "Noah Menezes 2006noahmenezes@gmail.com",
   "scripts": {
     "dev": "concurrently \"plasmo dev\" \"cd backend && ./venv/bin/python run.py\"",
+    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && ./venv/bin/python run.py\"",
     "build": "plasmo build",
     "package": "plasmo package",
     "test": "npx tsx --test packages/mcp-contracts/tests/schema.test.ts packages/mcp-contracts/tests/validation.test.ts packages/mcp-contracts/tests/compatibility.test.ts",

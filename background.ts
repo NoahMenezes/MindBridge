@@ -1,6 +1,6 @@
 import { auth } from "~core/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { addMemory, extractIdentity, storeRawChat, getRecentChats } from "~core/api"
+import { addMemory, extractIdentity, storeRawChat, getRecentChats, detectIdentityApi } from "~core/api"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
@@ -64,6 +64,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).catch(err => {
       console.error("RAG Engine Error:", err)
       sendResponse({ error: "Backend unreachable" })
+    })
+    return true
+  }
+
+  if (request.type === "DETECT_IDENTITY") {
+    detectIdentityApi(request.messages, request.workspace || "Personal").then((response) => {
+      sendResponse(response)
+    }).catch(err => {
+      console.error("Detect Identity API Error:", err)
+      sendResponse({ status: "error", error: "Backend unreachable" })
     })
     return true
   }

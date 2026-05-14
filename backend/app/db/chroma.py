@@ -7,7 +7,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 
 
-env_path = os.path.join(os.path.dirname(__file__), "../../../.env")
+env_path = os.path.join(os.path.dirname(__file__), "../../.env")
 load_dotenv(env_path)
 load_dotenv() 
 
@@ -54,7 +54,7 @@ def get_embedding_function():
     else:
         return embedding_functions.DefaultEmbeddingFunction()
 
-def get_collection(name="mindbridge_neural_v1"):
+def get_collection(name="mindbridge_neural_v2"):
     
     emb_fn = get_embedding_function()
     return client.get_or_create_collection(name=name, embedding_function=emb_fn)
