@@ -101,7 +101,7 @@ function IndexPopup() {
         </div>
         <div className="user-profile">
           <div className="avatar"></div>
-          <span style={{ fontSize: '11px', fontWeight: 500 }}>{user?.displayName || "Noah M."}</span>
+          <span style={{ fontSize: '11px', fontWeight: 500 }}>{user?.displayName || ""}</span>
         </div>
       </header>
 

@@ -10,6 +10,7 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@types/three": "^0.184.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "fumadocs-core": "16.8.11",
@@ -20,7 +21,8 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-icons": "^5.6.0",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",

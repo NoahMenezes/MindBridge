@@ -101,9 +101,17 @@ const Skeleton = () => {
   );
 };
 const Sparkles = () => {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const randomMove = () => Math.random() * 2 - 1;
   const randomOpacity = () => Math.random();
   const random = () => Math.random();
+
+  if (!mounted) return null;
+
   return (
     <div className="absolute inset-0">
       {[...Array(12)].map((_, i) => (
