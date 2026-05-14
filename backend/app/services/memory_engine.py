@@ -19,6 +19,40 @@ def get_or_create_workspace(db, name: str, user_id: uuid.UUID):
         db.flush()
     return workspace
 
+def generate_chat_context(query_text: str):
+    """
+    Architectural Step 1: Chat Context Parser.
+    Generates a structured semantic representation of the chat without storing it.
+    """
+    prompt = f"""
+    Analyze the following chat context and extract its structured semantic meaning for vector retrieval.
+    Return ONLY a JSON object with these keys:
+    - intent: what the user is trying to do
+    - topics: comma-separated list of key subjects
+    - entities: people, tools, systems, projects mentioned
+    - actions: requests, commands, or goals identified
+    - compressed_summary: 1-2 sentence meaning of the interaction
+
+    CHAT CONTEXT:
+    {query_text}
+    """
+    try:
+        response = call_llm(prompt)
+        context = extract_json(response)
+        if context:
+            return context
+    except Exception as e:
+        print(f"[CONTEXT_PARSER_ERROR] {e}")
+    
+    # Minimal fallback structure
+    return {
+        "intent": "general inquiry",
+        "topics": "unknown",
+        "entities": "none",
+        "actions": "none",
+        "compressed_summary": query_text[:200]
+    }
+
 def store_memory(content, workspace, type="note", tags=[], user_id=None, metadata={}):
     memory_id = f"mem_{uuid.uuid4().hex[:8]}"
     timestamp = datetime.now(timezone.utc)
@@ -110,9 +144,9 @@ def query_memories(query, workspace, limit=10):
 
 def search_relevant_memories(query: str, workspace: str = "Personal", limit: int = 10):
     try:
-        print(f"\n[CHROMA_DEBUG] Initiating search for: '{query}' in workspace: {workspace}")
+        print(f"\n[CHROMA_DEBUG] Initiating Context-Aware Search in workspace: {workspace}")
         
-        # 1. Attempt to resolve Workspace ID via REST
+        # 1. Resolve Workspace ID via REST
         slug = workspace.lower().replace(" ", "-")
         ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
         headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
@@ -126,57 +160,97 @@ def search_relevant_memories(query: str, workspace: str = "Personal", limit: int
         except Exception as ws_err:
             print(f"[CHROMA_DEBUG] Workspace resolution failed: {ws_err}")
 
-        # 2. Build Query Filter (None if workspace not found or 'Personal' fallback)
         where_filter = {"workspace_id": str(workspace_id)} if workspace_id else None
         
-        print(f"[CHROMA_DEBUG] Workspace ID: {workspace_id} (Filter: {where_filter})")
-        print(f"[CHROMA_DEBUG] Total items in collection: {collection.count()}")
+        # 2. Handle Empty Chat Input
+        search_query = query
+        if not search_query or not search_query.strip():
+            print("[CHROMA_DEBUG] Empty chat detected. Retrieving last stored memory for context.")
+            last_mem = collection.get(limit=1, include=["documents"])
+            if last_mem["documents"]:
+                search_query = last_mem["documents"][0]
+            else:
+                return []
 
-        # 3. Handle Search / Fallback
-        if not query or not query.strip():
-            print("[CHROMA_DEBUG] Empty query. Fetching absolute latest memories across all workspaces.")
-            # If query is empty, we use .get() to just grab the most recent ones
-            results = collection.get(
-                where=where_filter,
-                limit=limit,
-                include=["documents", "metadatas"]
-            )
-            # Standardize format to match .query()
-            results = {
-                "ids": [results["ids"]] if results["ids"] else [[]],
-                "documents": [results["documents"]] if results["documents"] else [[]],
-                "metadatas": [results["metadatas"]] if results["metadatas"] else [[]]
-            }
-        else:
-            results = collection.query(
-                query_texts=[query],
-                where=where_filter,
-                n_results=limit
-            )
+        # 3. Generate Structured Semantic Context
+        print("[CHROMA_DEBUG] Generating semantic context via LLM...")
+        ctx = generate_chat_context(search_query)
+        embedding_input = f"{ctx.get('compressed_summary', '')} {ctx.get('intent', '')} {ctx.get('topics', '')} {ctx.get('entities', '')}"
+        print(f"[CHROMA_DEBUG] Embedding Input: {embedding_input[:100]}...")
 
-        print(f"[CHROMA_DEBUG] Search returned {len(results['ids'][0])} results.")
-        
+        # 4. Semantic Search
+        results = collection.query(
+            query_texts=[embedding_input],
+            where=where_filter,
+            n_results=limit
+        )
+
         memories = []
         if results["ids"] and len(results["ids"][0]) > 0:
             for i in range(len(results["ids"][0])):
                 content = results["documents"][0][i]
                 summary = content[:150] + "..." if len(content) > 150 else content
+                
+                dist = results["distances"][0][i] if "distances" in results else 0.5
+                score = max(0.0, 1.0 - min(dist, 1.0))
+
+                # Threshold Filter
+                if score < 0.1: # Lowered threshold for better sensitivity
+                    continue
+
                 memories.append({
                     "id": results["ids"][0][i],
                     "summary": summary,
                     "workspace": workspace,
                     "type": results["metadatas"][0][i].get("type", "memory"),
                     "timestamp": results["metadatas"][0][i].get("timestamp", datetime.now(timezone.utc).isoformat()),
-                    "score": 1.0 - results["distances"][0][i] if "distances" in results else 0.8
+                    "score": score
                 })
-                print(f"  - [{memories[-1]['type']}] {summary[:50]}")
-        
-        # If still empty and we were filtering, try one last time WITHOUT the filter
-        if len(memories) == 0 and where_filter is not None:
-            print("[CHROMA_DEBUG] No results in workspace. Retrying search GLOBALLY.")
-            return search_relevant_memories(query, workspace="Global_Search_Fallback", limit=limit)
 
-        return memories
+        # 5. Global Search Fallback
+        if len(memories) == 0:
+            if where_filter is not None:
+                print("[CHROMA_DEBUG] No matches in workspace. Retrying search GLOBALLY.")
+                return search_relevant_memories(query, workspace="Global_Search_Fallback", limit=limit)
+            
+            print("[CHROMA_DEBUG] No semantic matches found. Triggering final log-dump fallback.")
+            fallback_results = collection.get(
+                where=where_filter,
+                limit=limit,
+                include=["documents", "metadatas"]
+            )
+
+            if fallback_results["ids"]:
+                for i in range(len(fallback_results["ids"])):
+                    content = fallback_results["documents"][i]
+                    summary = content[:150] + "..." if len(content) > 150 else content
+                    memories.append({
+                        "id": fallback_results["ids"][i],
+                        "summary": summary,
+                        "workspace": workspace,
+                        "type": fallback_results["metadatas"][i].get("type", "memory"),
+                        "timestamp": fallback_results["metadatas"][i].get("timestamp", datetime.now(timezone.utc).isoformat()),
+                        "score": 0.0,
+                        "is_fallback": True
+                    })
+
+                if memories:
+                    memories.insert(0, {
+                        "id": "fallback-msg",
+                        "summary": "Oops! No relevant data found. Meanwhile... choose from this assortment: ",
+                        "type": "system",
+                        "workspace": workspace,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "is_message": True
+                    })
+
+        # 6. Sort and Limit
+        memories.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return memories[:limit]
+    except Exception as e:
+        print(f"[CHROMA_DEBUG] Search Memories Error: {e}")
+        return []
+
     except Exception as e:
         print(f"[CHROMA_DEBUG] Search Memories Error: {e}")
         return []

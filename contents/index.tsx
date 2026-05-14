@@ -202,7 +202,7 @@ const MindBridgeUI = () => {
       document.querySelector("div[contenteditable='true']")
 
     if (input) {
-      const contextBlock = `[MEMORY CONTEXT]\n${memorySummary}\n[/MEMORY CONTEXT]\n\n`
+      const contextBlock = `[MEMORY CONTEXT]\n- ${memorySummary}\n[/MEMORY CONTEXT]\n\n`
 
       if (input instanceof HTMLTextAreaElement) {
         input.value = contextBlock + input.value
@@ -335,18 +335,29 @@ const MindBridgeUI = () => {
               <div className="history-section">
                 {retrievedMemories.map(mem => (
                   <div key={mem.id} className="history-item" style={{ marginBottom: "15px", borderBottom: "1px solid #333", paddingBottom: "10px" }}>
-                    <div className="item-meta">
-                      <span className="source-tag">{mem.type}</span>
-                      <span className="time-tag">{new Date(mem.timestamp).toLocaleDateString()}</span>
-                      <span className="source-tag" style={{ marginLeft: "5px" }}>{mem.workspace}</span>
+                    {mem.type !== 'system' && (
+                      <div className="item-meta">
+                        <span className="source-tag">{mem.type}</span>
+                        <span className="time-tag">{new Date(mem.timestamp).toLocaleDateString()}</span>
+                        <span className="source-tag" style={{ marginLeft: "5px" }}>{mem.workspace}</span>
+                      </div>
+                    )}
+                    <div className="item-snippet" style={{ 
+                      margin: "8px 0", 
+                      fontStyle: mem.type === 'system' ? 'italic' : 'normal',
+                      color: mem.type === 'system' ? '#f59e0b' : 'inherit',
+                      fontWeight: mem.type === 'system' ? 'bold' : 'normal'
+                    }}>
+                      {mem.summary}
                     </div>
-                    <div className="item-snippet" style={{ margin: "8px 0" }}>{mem.summary}</div>
-                    <button
-                      onClick={() => injectMemoryContext(mem.summary)}
-                      style={{ background: "#4caf50", color: "white", padding: "6px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
-                    >
-                      Sync
-                    </button>
+                    {mem.type !== 'system' && (
+                      <button
+                        onClick={() => injectMemoryContext(mem.summary)}
+                        style={{ background: "#4caf50", color: "white", padding: "6px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                      >
+                        Sync
+                      </button>
+                    )}
                   </div>
                 ))}
                 {retrievedMemories.length === 0 && <div className="empty-state">No relevant memories found.</div>}
