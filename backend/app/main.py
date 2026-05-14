@@ -73,7 +73,13 @@ from app.schemas import (
     ExtractIdentityRequest,
 )
 
-from app.services.memory_engine import store_memory, query_memories, analyze_chat_for_identity
+from app.services.memory_engine import (
+    store_memory, 
+    query_memories, 
+    analyze_chat_for_identity,
+    get_workspace_context as get_workspace_context_service,
+    delete_memory as delete_memory_service
+)
 
 # --- Endpoints ---
 @app.get("/")
@@ -90,7 +96,7 @@ async def add_memory(request: AddMemoryRequest):
     )
     return {
         **result,
-        "message": "Memory successfully stored in ChromaDB.",
+        "message": "Memory successfully stored in ChromaDB and Supabase.",
         "version": "1.0"
     }
 
@@ -129,25 +135,27 @@ async def extract_identity(request: ExtractIdentityRequest):
 
 @app.post("/get_workspace_context")
 async def get_workspace_context(request: GetWorkspaceContextRequest):
+    context = get_workspace_context_service(request.workspace)
+    
+    # Enrich with some recent memories from vector search
+    context["recent_memories"] = query_memories("", request.workspace, limit=5)
+    
     return {
-        "context": {
-            "workspace": request.workspace,
-            "total_memories": 42,
-            "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
-            "recent_memories": [], 
-            "top_tags": [
-                { "tag": "auth", "count": 12 }
-            ]
-        },
+        "context": context,
         "version": "1.0"
     }
 
 @app.post("/delete_memory")
 async def delete_memory(request: DeleteMemoryRequest):
+    success = delete_memory_service(request.id, request.workspace)
+    if not success:
+        raise HTTPException(status_code=404, detail="Memory not found in workspace.")
+        
     return {
         "id": request.id,
         "workspace": request.workspace,
-        "deleted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        "deleted_at": datetime.now(timezone.utc).isoformat(),
         "message": "Memory deleted successfully.",
         "version": "1.0"
     }
+
