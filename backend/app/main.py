@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -64,25 +65,12 @@ async def general_exception_handler(request: Request, exc: Exception):
         message="DB/Vector store failure."
     )
 
-# --- Pydantic Models ---
-class AddMemoryRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=10000)
-    workspace: str = Field(..., min_length=1, max_length=256)
-    type: Literal["project", "preference", "goal", "collaborator", "note", "context"]
-    tags: Optional[List[str]] = Field(default=[], max_length=20)
-
-class SearchMemoriesRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=500)
-    workspace: str
-    limit: Optional[int] = Field(default=10, ge=1, le=50)
-    min_score: Optional[float] = Field(default=0.5, ge=0.0, le=1.0)
-
-class GetWorkspaceContextRequest(BaseModel):
-    workspace: str
-
-class DeleteMemoryRequest(BaseModel):
-    id: str
-    workspace: str
+from app.schemas import (
+    AddMemoryRequest,
+    SearchMemoriesRequest,
+    GetWorkspaceContextRequest,
+    DeleteMemoryRequest,
+)
 
 # --- Endpoints ---
 @app.get("/")
