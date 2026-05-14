@@ -5,14 +5,19 @@
   "description": "A cross-platform memory operating system for AI tools.",
   "author": "Noah Menezes 2006noahmenezes@gmail.com",
   "scripts": {
-    "dev": "concurrently \"plasmo dev\" \"cd backend && ./venv/bin/python run.py\"",
-    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && ./venv/bin/python run.py\"",
+    "dev": "concurrently \"plasmo dev\" \"cd backend && .\\.venv\\Scripts\\python run.py\" \"npm run dev:interactions\"",
+    "dev:interactions": "ts-node backend/interactions/server.ts",
+    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && .\\.venv\\Scripts\\python run.py\" \"npm run dev:interactions\"",
     "build": "plasmo build",
     "package": "plasmo package",
     "test": "npx tsx --test packages/mcp-contracts/tests/schema.test.ts packages/mcp-contracts/tests/validation.test.ts packages/mcp-contracts/tests/compatibility.test.ts",
     "play": "npx tsx packages/mcp-contracts/playground.ts"
   },
   "dependencies": {
+    "@notionhq/client": "^5.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "firebase": "^12.13.0",
     "plasmo": "0.90.5",
     "react": "18.2.0",
@@ -22,11 +27,14 @@
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "4.1.1",
     "@types/chrome": "0.0.258",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "20.11.5",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
     "concurrently": "^9.2.1",
     "prettier": "3.2.4",
+    "ts-node": "^10.9.2",
     "typescript": "5.3.3"
   },
   "manifest": {

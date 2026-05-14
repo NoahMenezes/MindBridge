@@ -77,10 +77,13 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
+    print(f"[CRITICAL ERROR] {datetime.now()}: {exc}")
+    import traceback
+    traceback.print_exc()
     return format_error(
         status_code=500,
         code="INTERNAL_ERROR",
-        message="DB/Vector store failure."
+        message=f"DB/Vector store failure: {str(exc)}"
     )
 
 from app.schemas import (

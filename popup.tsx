@@ -8,25 +8,29 @@ const platforms = [
   { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', color: '#10a37f', url: 'https://chatgpt.com' },
   { id: 'claude', name: 'Claude.ai', icon: '🎭', color: '#d97757', url: 'https://claude.ai' },
   { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4', url: 'https://gemini.google.com' },
+  { id: 'notion', name: 'Notion Sync', icon: '📝', color: '#ffffff', url: 'https://notion.so' },
   { id: 'copilot', name: 'Github Copilot', icon: '🚀', color: '#ffffff', url: 'https://github.com/copilot' }
 ]
 
 function IndexPopup() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("identity")
-  const [identity, setIdentity] = useState(null)
-  const [user, setUser] = useState(null)
+  const [identity, setIdentity] = useState<any>(null)
+  const [user, setUser] = useState<any>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [selectedWorkspace, setSelectedWorkspace] = useState("Personal")
   const [connections, setConnections] = useState({
     chatgpt: false,
     claude: false,
     gemini: false,
-    copilot: false
+    copilot: false,
+    notion: false
   })
+  const [notionUrl, setNotionUrl] = useState("")
+  const [notionSyncing, setNotionSyncing] = useState(false)
 
   useEffect(() => {
-    let unsubscribe = () => {}
+    let unsubscribe = () => { }
     if (auth) {
       unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         setUser(firebaseUser)
@@ -38,13 +42,18 @@ function IndexPopup() {
 
     chrome.runtime.sendMessage({ type: "CHECK_SYNC" }, (response) => {
       if (response) {
-        if (response.identity) setIdentity(response.identity)
+        if (response.identity) {
+          setIdentity({
+            ...response.identity,
+            bridgePrompt: response.bridgePrompt // Sync the bridge prompt specifically
+          })
+        }
         if (response.connections) setConnections(response.connections)
       }
       setLoading(false)
     })
 
-    const listener = (message) => {
+    const listener = (message: any) => {
       if (message.type === "CONNECTIONS_UPDATED") {
         setConnections(message.connections)
       }
@@ -58,14 +67,35 @@ function IndexPopup() {
 
   useEffect(() => {
     if (activeTab === 'memories' || activeTab === 'workspaces') {
-      searchMemories("", selectedWorkspace)
-        .then(data => {
-          if (data?.memories) setMemories(data.memories)
+
+      Promise.all([
+        searchMemories("", selectedWorkspace),
+        fetch("http://localhost:3000/notion/memories").then(res => res.json())
+      ])
+        .then(([dbData, notionData]) => {
+
+          const dbMemories = dbData?.memories || []
+
+          const notionMemories = (notionData || [])
+            .filter((m: any) => m && (!selectedWorkspace || m.workspace === selectedWorkspace))
+            .map((m: any, i: number) => ({
+              id: `notion-${i}`,
+              type: "notion",
+              summary: m.summary || "No summary",
+              timestamp: new Date().toISOString()
+            }))
+
+          const allMemories = [...dbMemories, ...notionMemories].sort((a, b) => {
+            return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          })
+
+          setMemories(allMemories)
         })
         .catch(err => {
-          console.log("Backend offline, showing local state only.")
+          console.log("Error loading memories", err)
           setMemories([])
         })
+
     }
   }, [activeTab, selectedWorkspace])
 
@@ -84,12 +114,29 @@ function IndexPopup() {
 
   const handleSignOut = () => auth && signOut(auth)
 
-  const handleConnect = (id) => {
+  const handleConnect = (id: string) => {
     const platform = platforms.find(p => p.id === id)
     if (platform) {
       setConnections(prev => ({ ...prev, [id]: 'syncing' }))
       chrome.runtime.sendMessage({ type: "MANUAL_CONNECT", payload: { url: platform.url } })
     }
+  }
+
+  const handleNotionSync = async () => {
+    if (!notionUrl) return
+    setNotionSyncing(true)
+    chrome.runtime.sendMessage({ 
+      type: "SYNC_NOTION_PAGE", 
+      payload: { pageId: notionUrl, workspace: selectedWorkspace } 
+    }, (response: any) => {
+      setNotionSyncing(false)
+      if (response?.success) {
+        alert(`Successfully synced: ${response.title}`)
+        setNotionUrl("")
+      } else {
+        alert(`Sync Failed: ${response?.error || "Unknown error"}`)
+      }
+    })
   }
 
   return (
@@ -107,7 +154,7 @@ function IndexPopup() {
 
       <nav className="tab-bar">
         {['identity', 'memories', 'workspaces'].map(tab => (
-          <div 
+          <div
             key={tab}
             className={`tab ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setActiveTab(tab)}
@@ -147,7 +194,25 @@ function IndexPopup() {
                       <span style={{ fontSize: '18px' }}>{p.icon}</span>
                       <span style={{ fontSize: '13px', fontWeight: 500 }}>{p.name}</span>
                     </div>
-                    {connections[p.id] === true ? (
+                    {p.id === 'notion' ? (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input 
+                          className="search-input" 
+                          style={{ margin: 0, padding: '6px 10px', width: '120px', fontSize: '11px' }}
+                          placeholder="Paste Page ID..."
+                          value={notionUrl}
+                          onChange={(e) => setNotionUrl(e.target.value)}
+                        />
+                        <button 
+                          className="btn-primary" 
+                          style={{ padding: '6px 12px', fontSize: '11px' }}
+                          disabled={notionSyncing}
+                          onClick={handleNotionSync}
+                        >
+                          {notionSyncing ? "..." : "Sync"}
+                        </button>
+                      </div>
+                    ) : connections[p.id] === true ? (
                       <div className="sync-status" style={{ color: 'var(--success)', background: 'rgba(34, 197, 94, 0.1)', padding: '4px 8px', borderRadius: '6px' }}>
                         <div className="dot"></div>
                         <span>Synced</span>
@@ -195,7 +260,7 @@ function IndexPopup() {
               <div className="section-title">Workspace Selection</div>
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                 {['Personal', 'Startup', 'Research'].map(w => (
-                  <button 
+                  <button
                     key={w}
                     onClick={() => setSelectedWorkspace(w)}
                     className={selectedWorkspace === w ? "btn-primary" : "btn-secondary"}
@@ -209,10 +274,10 @@ function IndexPopup() {
 
             <section>
               <div className="section-title">Neural Mindmap</div>
-              <div style={{ 
-                height: '180px', 
-                background: 'var(--panel-bg)', 
-                borderRadius: '12px', 
+              <div style={{
+                height: '180px',
+                background: 'var(--panel-bg)',
+                borderRadius: '12px',
                 border: '1px solid var(--border)',
                 position: 'relative',
                 display: 'flex',
@@ -221,8 +286,8 @@ function IndexPopup() {
                 overflow: 'hidden'
               }}>
                 <div className="logo-icon" style={{ zIndex: 2, transform: 'scale(1.2)', boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}>M</div>
-                
-                {}
+
+                { }
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <div key={i} style={{
                     position: 'absolute',
@@ -235,16 +300,16 @@ function IndexPopup() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '14px',
-                    left: `${50 + 35 * Math.cos(i * 60 * Math.PI/180)}%`,
-                    top: `${50 + 35 * Math.sin(i * 60 * Math.PI/180)}%`,
+                    left: `${50 + 35 * Math.cos(i * 60 * Math.PI / 180)}%`,
+                    top: `${50 + 35 * Math.sin(i * 60 * Math.PI / 180)}%`,
                     transform: 'translate(-50%, -50%)',
                     opacity: 0.8
                   }}>
                     {['🤖', '🎭', '✨', '🚀', '🧠', '📁'][i]}
                   </div>
                 ))}
-                
-                {}
+
+                { }
                 <svg style={{ position: 'absolute', width: '100%', height: '100%', pointerEvents: 'none' }}>
                   <circle cx="50%" cy="50%" r="65" fill="none" stroke="var(--border)" strokeDasharray="4 4" />
                 </svg>

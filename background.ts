@@ -1,6 +1,7 @@
 import { auth } from "~core/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import { addMemory, extractIdentity, storeRawChat, getRecentChats, detectIdentityApi } from "~core/api"
+import { notionSync } from "~core/notion"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
@@ -12,7 +13,8 @@ const INITIAL_CONNECTIONS = {
   chatgpt: false,
   claude: false,
   gemini: false,
-  copilot: false
+  copilot: false,
+  notion: false
 }
 
 
@@ -162,5 +164,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "UPDATE_IDENTITY") {
     currentIdentity = { ...currentIdentity, ...request.identity }
     return false
+  }
+
+  if (request.type === "SYNC_NOTION_PAGE") {
+    const { pageId, workspace } = request.payload
+    notionSync.syncPage(pageId, workspace).then(result => {
+      sendResponse(result)
+    }).catch(err => {
+      sendResponse({ error: err.message })
+    })
+    return true
   }
 })
