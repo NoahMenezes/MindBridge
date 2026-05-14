@@ -1,3 +1,5 @@
+import { memoryEngine } from "./lib/memory-engine"
+
 export {}
 
 console.log("MindBridge Neural Engine: Ready to Profile")
@@ -6,7 +8,6 @@ console.log("MindBridge Neural Engine: Ready to Profile")
 let currentIdentity = null
 let currentBridgePrompt = null
 
-// Initialize connections from storage
 const INITIAL_CONNECTIONS = {
   chatgpt: false,
   claude: false,
@@ -14,7 +15,6 @@ const INITIAL_CONNECTIONS = {
   copilot: false
 }
 
-// Helper to get connections from storage
 const getConnections = () => {
   return new Promise((resolve) => {
     chrome.storage.local.get("connections", (result) => {
@@ -23,7 +23,6 @@ const getConnections = () => {
   })
 }
 
-// Helper to update connections in storage
 const updateConnection = (id, status) => {
   return new Promise((resolve) => {
     getConnections().then((connections: any) => {
@@ -36,32 +35,31 @@ const updateConnection = (id, status) => {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // 1. EXTRACT IDENTITY - Transform raw chat history into a professional persona
+  // 1. EXTRACT IDENTITY - Uses the real MemoryEngine logic
   if (request.type === "EXTRACT_IDENTITY") {
-    console.log("[Neural Engine] Analyzing chat history to detect identity...")
+    console.log("[Neural Engine] Running Memory Extraction...")
     
-    // In production, this would call Claude to "Who is this user?"
-    setTimeout(() => {
+    memoryEngine.extract(request.history).then(memory => {
+      // Convert the memory into a "Persona" identity
       currentIdentity = {
-        role: "Senior Full-Stack Engineer specializing in Fintech",
-        goal: "Building a secure B2B dashboard with React & Supabase",
-        style: "Direct, code-focused, and highly technical"
+        role: `Developer working on ${memory.project}`,
+        goal: memory.goal,
+        style: "Technical, concise",
+        memory: memory // Store the full structured memory
       }
       sendResponse({ identity: currentIdentity })
-    }, 1500)
+    })
     return true
   }
 
-  // 2. GENERATE BRIDGE - Handle short-term "thought teleportation"
+  // 2. GENERATE BRIDGE
   if (request.type === "GENERATE_BRIDGE") {
-    setTimeout(() => {
-      currentBridgePrompt = `Continue the architectural discussion about JWT auth...`
-      sendResponse({ bridgePrompt: currentBridgePrompt })
-    }, 500)
-    return true
+    currentBridgePrompt = `Continue the workflow for: "${request.rawContent.substring(0, 50)}..."`
+    sendResponse({ bridgePrompt: currentBridgePrompt })
+    return false
   }
 
-  // 3. CHECK SYNC - Check for identities, bridges, and connection status
+  // 3. CHECK SYNC
   if (request.type === "CHECK_SYNC") {
     getConnections().then(connections => {
       sendResponse({ 
@@ -73,28 +71,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true
   }
 
-  // 4. PLATFORM_SYNC - Called by content scripts when a user is active on a platform
+  // 4. PLATFORM_SYNC
   if (request.type === "PLATFORM_SYNC") {
-    const { platform, status, detectedEmail } = request.payload
-    
-    // Identity Verification Logic
-    let connectionStatus = status
-    if (detectedEmail && currentIdentity?.email) {
-      if (detectedEmail.toLowerCase() === currentIdentity.email.toLowerCase()) {
-        connectionStatus = true // Verified
-      } else {
-        connectionStatus = "mismatch" // Warning
-      }
-    }
-
-    updateConnection(platform, connectionStatus).then(connections => {
+    const { platform, status } = request.payload
+    updateConnection(platform, status).then(connections => {
       chrome.runtime.sendMessage({ type: "CONNECTIONS_UPDATED", connections })
     })
     return false
   }
 
-  // 6. UPDATE_IDENTITY - Update the master identity (e.g. email)
+  // 5. UPDATE_IDENTITY
   if (request.type === "UPDATE_IDENTITY") {
     currentIdentity = { ...currentIdentity, ...request.identity }
     return false
   }
+})
