@@ -58,9 +58,14 @@ function IndexPopup() {
 
   useEffect(() => {
     if (activeTab === 'memories' || activeTab === 'workspaces') {
-      searchMemories("", selectedWorkspace).then(data => {
-        if (data?.memories) setMemories(data.memories)
-      })
+      searchMemories("", selectedWorkspace)
+        .then(data => {
+          if (data?.memories) setMemories(data.memories)
+        })
+        .catch(err => {
+          console.log("Backend offline, showing local state only.")
+          setMemories([])
+        })
     }
   }, [activeTab, selectedWorkspace])
 
@@ -227,7 +232,7 @@ function IndexPopup() {
                 <div className="logo-icon" style={{ zIndex: 2, transform: 'scale(1.2)', boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}>M</div>
                 
                 {/* Visual Mindmap Decoration */}
-                {[...Array(6)].map((_, i) => (
+                {[0, 1, 2, 3, 4, 5].map((i) => (
                   <div key={i} style={{
                     position: 'absolute',
                     width: '40px',

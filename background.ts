@@ -1,11 +1,20 @@
 import { auth } from "~core/firebase"
 import { onAuthStateChanged } from "firebase/auth"
+import { memoryEngine } from "./lib/memory-engine"
+import { addMemory } from "~core/api"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
 // State Management
 let currentIdentity: any = null
 let currentBridgePrompt = null
+
+const INITIAL_CONNECTIONS = {
+  chatgpt: false,
+  claude: false,
+  gemini: false,
+  copilot: false
+}
 
 // Listen for Firebase Auth changes
 if (auth) {
@@ -24,15 +33,6 @@ if (auth) {
   })
 }
 
-// Initialize connections from storage
-const INITIAL_CONNECTIONS = {
-  chatgpt: false,
-  claude: false,
-  gemini: false,
-  copilot: false
-}
-
-// Helper to get connections from storage
 const getConnections = () => {
   return new Promise((resolve) => {
     chrome.storage.local.get("connections", (result) => {
@@ -41,7 +41,6 @@ const getConnections = () => {
   })
 }
 
-// Helper to update connections in storage
 const updateConnection = (id, status) => {
   return new Promise((resolve) => {
     getConnections().then((connections: any) => {
@@ -53,12 +52,8 @@ const updateConnection = (id, status) => {
   })
 }
 
-import { addMemory } from "~core/api"
-
-// ... (existing auth and state management)
-
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // 1. EXTRACT IDENTITY - Transform raw chat history into a professional persona
+  // 1. EXTRACT IDENTITY - Uses Sneha's RAG MemoryEngine logic
   if (request.type === "EXTRACT_IDENTITY") {
     // BLOCKER: Do nothing if not signed in to Google
     if (!currentIdentity?.email) {
@@ -66,49 +61,50 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return false
     }
 
-    console.log("[Neural Engine] Analyzing chat history to detect identity...")
+    console.log("[Neural Engine] Analyzing chat history with RAG engine...")
     
-    // In production, this would call Claude to "Who is this user?"
-    setTimeout(async () => {
-      const identity = {
-        role: "Senior Full-Stack Engineer specializing in Fintech",
-        goal: "Building a secure B2B dashboard with React & Supabase",
-        style: "Direct, code-focused, and highly technical"
+    // Use the Memory Engine to convert unstructured chat to structured memory
+    memoryEngine.extract(request.history).then(async (memory) => {
+      const identityUpdate = {
+        role: `Developer working on ${memory.project}`,
+        goal: memory.goal,
+        style: "Technical, concise",
+        memory: memory // Store the full structured RAG memory
       }
-      currentIdentity = { ...currentIdentity, ...identity }
       
-      // Store in ChromaDB via FastAPI
+      currentIdentity = { ...currentIdentity, ...identityUpdate }
+      
+      // Store the structured data in ChromaDB via FastAPI
       await addMemory(
-        `User is a ${identity.role} working on ${identity.goal}`, 
+        `Project: ${memory.project}. Goal: ${memory.goal}. Tech: ${memory.tech_stack.join(", ")}`, 
         "Personal", 
         "context", 
-        ["identity", "profile"]
+        ["rag", "identity", ...memory.tech_stack]
       )
 
       sendResponse({ identity: currentIdentity })
-    }, 1500)
+    })
     return true
   }
 
-  // 2. GENERATE BRIDGE - Handle short-term "thought teleportation"
+  // 2. GENERATE BRIDGE
   if (request.type === "GENERATE_BRIDGE") {
-    setTimeout(async () => {
-      currentBridgePrompt = `Continue the architectural discussion about JWT auth...`
-      
-      // Store bridge in ChromaDB
-      await addMemory(
-        currentBridgePrompt, 
-        "Personal", 
-        "context", 
-        ["bridge", "temporary"]
-      )
-
+    const rawText = request.rawContent || ""
+    currentBridgePrompt = `Continue the workflow for: "${rawText.substring(0, 100)}..."`
+    
+    // Store bridge in ChromaDB
+    addMemory(
+      currentBridgePrompt, 
+      "Personal", 
+      "context", 
+      ["bridge", "temporary"]
+    ).then(() => {
       sendResponse({ bridgePrompt: currentBridgePrompt })
-    }, 500)
+    })
     return true
   }
 
-  // 3. CHECK SYNC - Check for identities, bridges, and connection status
+  // 3. CHECK SYNC
   if (request.type === "CHECK_SYNC") {
     getConnections().then(connections => {
       sendResponse({ 
@@ -120,9 +116,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true
   }
 
-  // 4. PLATFORM_SYNC - Called by content scripts when a user is active on a platform
+  // 4. PLATFORM_SYNC - Identity Verification Logic
   if (request.type === "PLATFORM_SYNC") {
-    // BLOCKER: Do nothing if not signed in to Google
     if (!currentIdentity?.email) {
       console.log("[Neural Engine] Sync blocked: No Google Identity found.")
       return false
@@ -130,7 +125,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     const { platform, status, detectedEmail } = request.payload
     
-    // Identity Verification Logic
     let connectionStatus = status
     if (detectedEmail && currentIdentity?.email) {
       if (detectedEmail.toLowerCase() === currentIdentity.email.toLowerCase()) {
@@ -146,18 +140,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false
   }
 
-  // 5. MANUAL_CONNECT - Initiate a connection by opening the platform
+  // 5. MANUAL_CONNECT
   if (request.type === "MANUAL_CONNECT") {
     const { url } = request.payload
     chrome.tabs.create({ url })
     return false
   }
 
-  // 6. UPDATE_IDENTITY - Update the master identity (e.g. email)
+  // 6. UPDATE_IDENTITY
   if (request.type === "UPDATE_IDENTITY") {
-    if (currentIdentity) {
-      currentIdentity = { ...currentIdentity, ...request.identity }
-    }
+    currentIdentity = { ...currentIdentity, ...request.identity }
     return false
   }
 })

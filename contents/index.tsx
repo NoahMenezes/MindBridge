@@ -32,11 +32,11 @@ const MindBridgeUI = () => {
   const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // 1. "DETECT" - The Magic Feature: Scrape the whole chat to find the user's "Identity"
+  // 1. "DETECT" - Scrape the chat to find the user's "Identity"
   const detectIdentity = async () => {
     setLoading(true)
     const allMessages = Array.from(document.querySelectorAll('.message, [data-testid*="message"], .font-claude-message'))
-      .map(m => m.innerText)
+      .map(m => (m as HTMLElement).innerText)
       .join("\n\n")
     
     chrome.runtime.sendMessage({ 
@@ -51,7 +51,7 @@ const MindBridgeUI = () => {
     })
   }
 
-  // 2. "BRIDGE" - Carry over the specific current thought
+  // 2. "BRIDGE" - Carry over the identity/context to the input
   const injectUniversalContext = () => {
     if (!identity && !bridgeContext) return
 
@@ -76,21 +76,15 @@ const MindBridgeUI = () => {
     }
   }
 
-  // Helper to find email-like strings in the DOM
+  // Helper to find email-like strings in the DOM for verification
   const findEmailInDOM = () => {
-    // 1. Try common selectors
-    const potentialElements = document.querySelectorAll('.text-token-text-tertiary, .font-claude-message, [aria-label*="Profile"], .gb_d');
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    
-    // 2. Search entire visible text if selectors fail
     const pageText = document.body.innerText;
     const matches = pageText.match(emailRegex);
-    
     return matches ? matches[0] : null;
   }
 
   useEffect(() => {
-    // Determine which platform we are on
     const hostname = window.location.hostname
     let platform = null
     if (hostname.includes('chatgpt.com')) platform = 'chatgpt'
@@ -98,17 +92,13 @@ const MindBridgeUI = () => {
     else if (hostname.includes('gemini.google.com')) platform = 'gemini'
 
     if (platform) {
-      // Try to find the email on the page
       const detectedEmail = findEmailInDOM();
-      
-      // Automatically report that this platform is active/synced
       chrome.runtime.sendMessage({ 
         type: "PLATFORM_SYNC", 
         payload: { platform, status: true, detectedEmail } 
       })
     }
 
-    // Check for existing identity/bridge context
     chrome.runtime.sendMessage({ type: "CHECK_SYNC" }, (response) => {
       if (response?.identity) setIdentity(response.identity)
       if (response?.bridgePrompt) setBridgeContext(response.bridgePrompt)

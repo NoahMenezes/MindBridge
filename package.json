@@ -5,7 +5,7 @@
   "description": "A cross-platform memory operating system for AI tools.",
   "author": "Noah Menezes 2006noahmenezes@gmail.com",
   "scripts": {
-    "dev": "plasmo dev",
+    "dev": "concurrently \"plasmo dev\" \"cd backend && ./venv/bin/python run.py\"",
     "build": "plasmo build",
     "package": "plasmo package",
     "test": "npx tsx --test packages/mcp-contracts/tests/schema.test.ts packages/mcp-contracts/tests/validation.test.ts packages/mcp-contracts/tests/compatibility.test.ts",
@@ -24,15 +24,19 @@
     "@types/node": "20.11.5",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
+    "concurrently": "^9.2.1",
     "prettier": "3.2.4",
     "typescript": "5.3.3"
   },
   "manifest": {
     "host_permissions": [
-      "https://*/*"
+      "https://chatgpt.com/*",
+      "https://claude.ai/*",
+      "https://gemini.google.com/*"
     ],
     "permissions": [
-      "storage"
+      "storage",
+      "tabs"
     ]
   }
 }
