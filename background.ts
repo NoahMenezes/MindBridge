@@ -1,6 +1,6 @@
 import { auth } from "~core/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { addMemory, extractIdentity, storeRawChat, getRecentChats, detectIdentityApi } from "~core/api"
+import { addMemory, extractIdentity, storeRawChat, getRecentChats, detectIdentityApi, getRelevantMemories } from "~core/api"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
@@ -100,6 +100,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).catch(err => {
       console.error("Fetch Error:", err)
       sendResponse({ chats: [] })
+    })
+    return true
+  }
+
+  if (request.type === "GET_RELEVANT_MEMORIES") {
+    getRelevantMemories(request.query, request.workspace || "Personal").then((response) => {
+      sendResponse(response)
+    }).catch(err => {
+      console.error("Memory Fetch Error:", err)
+      sendResponse({ status: "error", memories: [] })
     })
     return true
   }

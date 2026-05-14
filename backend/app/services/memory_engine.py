@@ -71,17 +71,23 @@ def store_memory(content, workspace, type="note", tags=[], user_id=None, metadat
     }
 
 def query_memories(query, workspace, limit=10):
-    db = SessionLocal()
     try:
         slug = workspace.lower().replace(" ", "-")
-        workspace_obj = db.query(PostgresWorkspace).filter(PostgresWorkspace.slug == slug).first()
+        url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
         
-        if not workspace_obj:
+        workspace_id = None
+        with httpx.Client() as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 200 and len(resp.json()) > 0:
+                workspace_id = resp.json()[0]["id"]
+                
+        if not workspace_id:
             return []
 
         results = collection.query(
             query_texts=[query],
-            where={"workspace_id": str(workspace_obj.id)},
+            where={"workspace_id": str(workspace_id)},
             n_results=limit
         )
         
@@ -98,8 +104,48 @@ def query_memories(query, workspace, limit=10):
                     "score": 1.0 - results["distances"][0][i] if "distances" in results else 0.8
                 })
         return memories
-    finally:
-        db.close()
+    except Exception as e:
+        print(f"Query Memories Error: {e}")
+        return []
+
+def search_relevant_memories(query: str, workspace: str = "Personal", limit: int = 5):
+    try:
+        slug = workspace.lower().replace(" ", "-")
+        url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        
+        workspace_id = None
+        with httpx.Client() as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 200 and len(resp.json()) > 0:
+                workspace_id = resp.json()[0]["id"]
+                
+        if not workspace_id:
+            return []
+
+        results = collection.query(
+            query_texts=[query],
+            where={"workspace_id": str(workspace_id)},
+            n_results=limit
+        )
+        
+        memories = []
+        if results["ids"] and len(results["ids"][0]) > 0:
+            for i in range(len(results["ids"][0])):
+                content = results["documents"][0][i]
+                summary = content[:150] + "..." if len(content) > 150 else content
+                memories.append({
+                    "id": results["ids"][0][i],
+                    "summary": summary,
+                    "workspace": workspace,
+                    "type": results["metadatas"][0][i]["type"],
+                    "timestamp": results["metadatas"][0][i].get("timestamp", datetime.now(timezone.utc).isoformat()),
+                    "score": 1.0 - results["distances"][0][i] if "distances" in results else 0.8
+                })
+        return memories
+    except Exception as e:
+        print(f"Search Memories Error: {e}")
+        return []
 
 def delete_memory(memory_id, workspace):
     collection.delete(ids=[memory_id])

@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 from datetime import datetime, timezone
@@ -18,8 +19,10 @@ except Exception as e:
     print(f"Warning: Could not create Postgres tables: {e}")
 
 from fastapi.middleware.cors import CORSMiddleware
+from app.routes import memory
 
 app = FastAPI()
+app.include_router(memory.router)
 
 app.add_middleware(
     CORSMiddleware,

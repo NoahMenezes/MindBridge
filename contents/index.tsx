@@ -26,8 +26,8 @@ export const getInlineAnchor: PlasmoGetInlineAnchor = async () => {
   const claudeInput = document.querySelector("div[contenteditable='true']")?.closest('.flex.flex-col')
   if (claudeInput) return claudeInput
 
-  const geminiInput = document.querySelector("div[contenteditable='true']")?.closest('.input-area') || 
-                     document.querySelector("div[contenteditable='true']")?.parentElement
+  const geminiInput = document.querySelector("div[contenteditable='true']")?.closest('.input-area') ||
+    document.querySelector("div[contenteditable='true']")?.parentElement
   if (geminiInput) return geminiInput
 
   return null
@@ -41,6 +41,10 @@ const MindBridgeUI = () => {
   const [syncing, setSyncing] = useState(false)
   const [hasChat, setHasChat] = useState(false)
   const [recentChats, setRecentChats] = useState([])
+  const [showSyncModal, setShowSyncModal] = useState(false)
+  const [retrievedMemories, setRetrievedMemories] = useState([])
+  const [fetchingMemories, setFetchingMemories] = useState(false)
+  const [showToast, setShowToast] = useState(false)
 
   useEffect(() => {
     const checkChat = () => {
@@ -77,8 +81,8 @@ const MindBridgeUI = () => {
   const extractStructuredChat = (): StructuredMessage[] => {
     const messages: StructuredMessage[] = []
     const now = Date.now()
-    const workspace = window.location.hostname.includes("chatgpt") ? "chatgpt" : 
-                      window.location.hostname.includes("claude") ? "claude" : "gemini"
+    const workspace = window.location.hostname.includes("chatgpt") ? "chatgpt" :
+      window.location.hostname.includes("claude") ? "claude" : "gemini"
 
     // --- PHASE 1: DOM EXTRACTION ---
     if (workspace === "chatgpt") {
@@ -86,14 +90,14 @@ const MindBridgeUI = () => {
       chatgptNodes.forEach((node, index) => {
         const roleAttr = node.getAttribute('data-message-author-role')
         let rawContent = (node as HTMLElement).innerText || ""
-        
+
         // --- PHASE 2: DATA CLEANING ---
         // Remove zero-width spaces, normalize whitespace, and trim UI artifacts
         const cleanContent = rawContent
           .replace(/[\u200B-\u200D\uFEFF]/g, '')
           .replace(/\s+/g, ' ')
           .trim()
-        
+
         // --- PHASE 3: NORMALIZATION ---
         if (cleanContent.length > 0 && (roleAttr === 'user' || roleAttr === 'assistant')) {
           messages.push({
@@ -104,7 +108,7 @@ const MindBridgeUI = () => {
           })
         }
       })
-    } 
+    }
     else if (workspace === "claude") {
       const claudeNodes = document.querySelectorAll('.font-claude-message, .font-user-message, [class*="message-content"]')
       claudeNodes.forEach((node, index) => {
@@ -130,7 +134,7 @@ const MindBridgeUI = () => {
     // Prevent empty messages and duplicate entries from triggering multiple DB writes
     const uniqueMessages = []
     const seenContent = new Set()
-    
+
     for (const msg of messages) {
       if (!seenContent.has(msg.content)) {
         seenContent.add(msg.content)
@@ -139,17 +143,17 @@ const MindBridgeUI = () => {
     }
 
     console.log("[MindBridge] Pipeline Output:", uniqueMessages)
-    return uniqueMessages.slice(-20) 
+    return uniqueMessages.slice(-20)
   }
 
   const detectIdentity = async () => {
     if (!hasChat) return
     setLoading(true)
     const structuredPayload = extractStructuredChat()
-    
+
     console.log("[MindBridge] Sending payload to background script...")
-    chrome.runtime.sendMessage({ 
-      type: "DETECT_IDENTITY", 
+    chrome.runtime.sendMessage({
+      type: "DETECT_IDENTITY",
       messages: structuredPayload,
       workspace: structuredPayload[0]?.workspace || "Personal"
     }, (response) => {
@@ -163,49 +167,71 @@ const MindBridgeUI = () => {
     })
   }
 
-  const captureAndSync = async () => {
-    setSyncing(true)
+  const openMemorySyncModal = () => {
+    setShowSyncModal(true)
+    setFetchingMemories(true)
+
     const structuredPayload = extractStructuredChat()
-    
-    // For raw unstructured storage, convert to readable text
-    const plainTextPayload = structuredPayload
-      .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-      .join("\n\n")
-      
+    const recentContext = structuredPayload
+      .filter(m => m.role === "user")
+      .slice(-5)
+      .map(m => m.content)
+      .join("\n")
+
     const workspace = structuredPayload[0]?.workspace || "Personal"
 
     chrome.runtime.sendMessage({
-      type: "STORE_RAW_CHAT",
-      raw_content: plainTextPayload,
-      workspace: workspace,
-      source: workspace.toUpperCase()
+      type: "GET_RELEVANT_MEMORIES",
+      query: recentContext,
+      workspace: workspace
     }, (response) => {
-      if (response?.success) {
-        injectUniversalContext()
-        fetchRecentChats()
+      if (response?.memories) {
+        setRetrievedMemories(response.memories)
       } else {
-        console.error("Sync Failed:", response?.error)
+        setRetrievedMemories([])
       }
-      setSyncing(false)
+      setFetchingMemories(false)
     })
   }
 
-  const injectUniversalContext = () => {
-    const input = document.querySelector("#prompt-textarea") || 
-                  document.querySelector("div[contenteditable='true']")
-    
+  const injectMemoryContext = (memorySummary: string) => {
+    const input = document.querySelector("#prompt-textarea") ||
+      document.querySelector("div[contenteditable='true']")
+
     if (input) {
-      const contextBlock = 
-        `[MINDBRIDGE NEURAL IDENTITY SYNCED]\n` +
-        (identity ? `Role: ${identity.role}\nGoal: ${identity.goal}\n` : "") +
-        `---\n\n`
-      
+      const contextBlock = `[RECALLED MEMORY]\n${memorySummary}\n---\n\n`
+
       if (input instanceof HTMLTextAreaElement) {
         input.value = contextBlock + input.value
       } else if (input instanceof HTMLElement && input.isContentEditable) {
         input.innerText = contextBlock + input.innerText
       }
-      
+
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      setShowSyncModal(false)
+      setShowDropdown(false)
+
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+    }
+  }
+
+  const injectUniversalContext = () => {
+    const input = document.querySelector("#prompt-textarea") ||
+      document.querySelector("div[contenteditable='true']")
+
+    if (input) {
+      const contextBlock =
+        `[MINDBRIDGE NEURAL IDENTITY SYNCED]\n` +
+        (identity ? `Role: ${identity.role}\nGoal: ${identity.goal}\n` : "") +
+        `---\n\n`
+
+      if (input instanceof HTMLTextAreaElement) {
+        input.value = contextBlock + input.value
+      } else if (input instanceof HTMLElement && input.isContentEditable) {
+        input.innerText = contextBlock + input.innerText
+      }
+
       input.dispatchEvent(new Event('input', { bubbles: true }))
       setShowDropdown(false)
     }
@@ -220,8 +246,8 @@ const MindBridgeUI = () => {
 
   return (
     <div className="mind-bridge-wrapper">
-      <div 
-        className={`mind-bridge-main-btn ${identity ? 'active' : ''}`} 
+      <div
+        className={`mind-bridge-main-btn ${identity ? 'active' : ''}`}
         onClick={() => setShowDropdown(!showDropdown)}
         id="mindbridge-identity-ai-btn"
       >
@@ -237,9 +263,9 @@ const MindBridgeUI = () => {
           <div className="panel-header">
             <span className="header-tag">AI NEURAL SYNC</span>
           </div>
-          
+
           <div className="panel-body">
-            <button 
+            <button
               onClick={detectIdentity}
               className="action-btn detect-btn"
               disabled={loading || !hasChat}
@@ -249,14 +275,13 @@ const MindBridgeUI = () => {
               {loading && <div className="loader"></div>}
             </button>
 
-            <button 
-              onClick={captureAndSync}
+            <button
+              onClick={openMemorySyncModal}
               className="action-btn sync-btn"
-              disabled={syncing || (!identity && !hasChat)}
+              disabled={!hasChat}
             >
               <span className="icon">🚀</span>
-              <span className="text">{syncing ? "Syncing..." : "Connect"}</span>
-              {syncing && <div className="loader white"></div>}
+              <span className="text">Sync Memory</span>
             </button>
           </div>
         </div>
@@ -268,7 +293,7 @@ const MindBridgeUI = () => {
             <h3>Neural Summary</h3>
             <button className="close-btn" onClick={() => setShowSidebar(false)}>✕</button>
           </div>
-          
+
           <div className="sidebar-content">
             {identity && (
               <div className="summary-card highlight">
@@ -292,6 +317,46 @@ const MindBridgeUI = () => {
               {recentChats.length === 0 && <div className="empty-state">No previous chats archived.</div>}
             </div>
           </div>
+        </div>
+      )}
+
+      {showSyncModal && (
+        <div className="mind-bridge-sidebar" style={{ zIndex: 9999 }}>
+          <div className="sidebar-header">
+            <h3>Memory Sync</h3>
+            <button className="close-btn" onClick={() => setShowSyncModal(false)}>✕</button>
+          </div>
+          <div className="sidebar-content">
+            {fetchingMemories ? (
+              <div className="loader" style={{ margin: "20px auto" }}></div>
+            ) : (
+              <div className="history-section">
+                {retrievedMemories.map(mem => (
+                  <div key={mem.id} className="history-item" style={{ marginBottom: "15px", borderBottom: "1px solid #333", paddingBottom: "10px" }}>
+                    <div className="item-meta">
+                      <span className="source-tag">{mem.type}</span>
+                      <span className="time-tag">{new Date(mem.timestamp).toLocaleDateString()}</span>
+                      <span className="source-tag" style={{ marginLeft: "5px" }}>{mem.workspace}</span>
+                    </div>
+                    <div className="item-snippet" style={{ margin: "8px 0" }}>{mem.summary}</div>
+                    <button
+                      onClick={() => injectMemoryContext(mem.summary)}
+                      style={{ background: "#4caf50", color: "white", padding: "6px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                    >
+                      Sync
+                    </button>
+                  </div>
+                ))}
+                {retrievedMemories.length === 0 && <div className="empty-state">No relevant memories found.</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showToast && (
+        <div style={{ position: "fixed", bottom: "20px", right: "20px", background: "#4caf50", color: "white", padding: "10px 20px", borderRadius: "8px", zIndex: 10000, fontWeight: "bold", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
+          Memory synced successfully
         </div>
       )}
     </div>

@@ -106,3 +106,17 @@ export const detectIdentityApi = async (messages: any[], workspace: string) => {
     return { status: "error", error: "Backend unreachable" };
   }
 };
+
+export const getRelevantMemories = async (query: string, workspace: string = "Personal") => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/get_relevant_memories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, workspace })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("API Error (get_relevant_memories):", error);
+    return { status: "error", memories: [] };
+  }
+};

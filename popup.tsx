@@ -26,7 +26,7 @@ function IndexPopup() {
   })
 
   useEffect(() => {
-    let unsubscribe = () => {}
+    let unsubscribe = () => { }
     if (auth) {
       unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         setUser(firebaseUser)
@@ -107,7 +107,7 @@ function IndexPopup() {
 
       <nav className="tab-bar">
         {['identity', 'memories', 'workspaces'].map(tab => (
-          <div 
+          <div
             key={tab}
             className={`tab ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setActiveTab(tab)}
@@ -155,7 +155,7 @@ function IndexPopup() {
                     ) : connections[p.id] === 'syncing' ? (
                       <div className="loader" style={{ width: '12px', height: '12px' }}></div>
                     ) : (
-                      <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={() => handleConnect(p.id)}>Connect AI</button>
+                      <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={() => handleConnect(p.id)}>Sync</button>
                     )}
                   </div>
                 ))}
@@ -195,7 +195,7 @@ function IndexPopup() {
               <div className="section-title">Workspace Selection</div>
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                 {['Personal', 'Startup', 'Research'].map(w => (
-                  <button 
+                  <button
                     key={w}
                     onClick={() => setSelectedWorkspace(w)}
                     className={selectedWorkspace === w ? "btn-primary" : "btn-secondary"}
@@ -209,10 +209,10 @@ function IndexPopup() {
 
             <section>
               <div className="section-title">Neural Mindmap</div>
-              <div style={{ 
-                height: '180px', 
-                background: 'var(--panel-bg)', 
-                borderRadius: '12px', 
+              <div style={{
+                height: '180px',
+                background: 'var(--panel-bg)',
+                borderRadius: '12px',
                 border: '1px solid var(--border)',
                 position: 'relative',
                 display: 'flex',
@@ -221,8 +221,8 @@ function IndexPopup() {
                 overflow: 'hidden'
               }}>
                 <div className="logo-icon" style={{ zIndex: 2, transform: 'scale(1.2)', boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}>M</div>
-                
-                {}
+
+                { }
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <div key={i} style={{
                     position: 'absolute',
@@ -235,16 +235,16 @@ function IndexPopup() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '14px',
-                    left: `${50 + 35 * Math.cos(i * 60 * Math.PI/180)}%`,
-                    top: `${50 + 35 * Math.sin(i * 60 * Math.PI/180)}%`,
+                    left: `${50 + 35 * Math.cos(i * 60 * Math.PI / 180)}%`,
+                    top: `${50 + 35 * Math.sin(i * 60 * Math.PI / 180)}%`,
                     transform: 'translate(-50%, -50%)',
                     opacity: 0.8
                   }}>
                     {['🤖', '🎭', '✨', '🚀', '🧠', '📁'][i]}
                   </div>
                 ))}
-                
-                {}
+
+                { }
                 <svg style={{ position: 'absolute', width: '100%', height: '100%', pointerEvents: 'none' }}>
                   <circle cx="50%" cy="50%" r="65" fill="none" stroke="var(--border)" strokeDasharray="4 4" />
                 </svg>
