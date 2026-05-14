@@ -33,7 +33,6 @@ const MindBridgeUI = () => {
   const [loading, setLoading] = useState(false)
   const [hasChat, setHasChat] = useState(false)
 
-  // Monitor for chat content to enable detection
   useEffect(() => {
     const checkChat = () => {
       const messages = document.querySelectorAll('.message, [data-testid*="message"], .font-claude-message')
@@ -45,7 +44,6 @@ const MindBridgeUI = () => {
     return () => observer.disconnect()
   }, [])
 
-  // 1. "DETECT" - Scrape the chat to find the user's "Identity"
   const detectIdentity = async () => {
     if (!hasChat) return
     setLoading(true)
@@ -60,14 +58,13 @@ const MindBridgeUI = () => {
       setLoading(false)
       if (response?.identity) {
         setIdentity(response.identity)
-        console.log("MindBridge: RAG Extraction Complete.")
+        console.log("MindBridge: RAG Extraction Complete and stored in Postgres.")
       } else if (response?.error) {
         console.error("Extraction Failed:", response.error)
       }
     })
   }
 
-  // 2. "BRIDGE" - Carry over the identity/context to the input
   const injectUniversalContext = () => {
     if (!identity && !bridgeContext) return
 
@@ -77,7 +74,7 @@ const MindBridgeUI = () => {
     if (input) {
       const contextBlock = 
         `[MINDBRIDGE NEURAL IDENTITY SYNCED]\n` +
-        (identity ? `Role: ${identity.role}\nGoal: ${identity.goal}\n` : "") +
+        (identity ? `Role: ${identity.role}\nGoal: ${identity.goal}\nTech: ${identity.tech_stack?.join(", ")}\n` : "") +
         (bridgeContext ? `Current Flow: ${bridgeContext}\n` : "") +
         `---\n\n`
       
@@ -92,29 +89,7 @@ const MindBridgeUI = () => {
     }
   }
 
-  // Helper to find email-like strings in the DOM for verification
-  const findEmailInDOM = () => {
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-    const pageText = document.body.innerText;
-    const matches = pageText.match(emailRegex);
-    return matches ? matches[0] : null;
-  }
-
   useEffect(() => {
-    const hostname = window.location.hostname
-    let platform = null
-    if (hostname.includes('chatgpt.com')) platform = 'chatgpt'
-    else if (hostname.includes('claude.ai')) platform = 'claude'
-    else if (hostname.includes('gemini.google.com')) platform = 'gemini'
-
-    if (platform) {
-      const detectedEmail = findEmailInDOM();
-      chrome.runtime.sendMessage({ 
-        type: "PLATFORM_SYNC", 
-        payload: { platform, status: true, detectedEmail } 
-      })
-    }
-
     chrome.runtime.sendMessage({ type: "CHECK_SYNC" }, (response) => {
       if (response?.identity) setIdentity(response.identity)
       if (response?.bridgePrompt) setBridgeContext(response.bridgePrompt)
@@ -122,50 +97,67 @@ const MindBridgeUI = () => {
   }, [])
 
   return (
-    <div className="mind-bridge-inject-container" onClick={() => setShowDropdown(!showDropdown)}>
-      <div className="mind-bridge-logo-small"></div>
-      <span>{identity ? "🧬 Identity Synced" : "MindBridge Active"}</span>
+    <div className="mind-bridge-wrapper">
+      <div 
+        className={`mind-bridge-main-btn ${identity ? 'active' : ''}`} 
+        onClick={() => setShowDropdown(!showDropdown)}
+        id="mindbridge-identity-ai-btn"
+      >
+        <div className="neural-icon">
+          <div className="pulse"></div>
+        </div>
+        <span>{identity ? "Identity Synced" : "Identity AI"}</span>
+      </div>
 
       {showDropdown && (
-        <div className="mind-bridge-dropdown" onClick={(e) => e.stopPropagation()}>
-          <div className="workspace-label">AI Neural Sync</div>
+        <div className="mind-bridge-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="panel-header">
+            <span className="header-tag">NEURAL ENGINE</span>
+            <h3>Identity Sync</h3>
+          </div>
           
-          <button 
-            onClick={detectIdentity}
-            className="inject-btn"
-            style={{ 
-              background: '#1c1c1f', 
-              border: '1px solid #262626', 
-              color: '#f3f4f6', 
-              marginBottom: '8px',
-              opacity: hasChat ? 1 : 0.5,
-              cursor: hasChat ? 'pointer' : 'not-allowed'
-            }}
-            disabled={loading || !hasChat}
-          >
-            {loading ? "Detecting Identity..." : "🧬 Detect My Identity from this Chat"}
-          </button>
+          <div className="panel-body">
+            <button 
+              onClick={detectIdentity}
+              className="action-btn detect-btn"
+              disabled={loading || !hasChat}
+            >
+              <span className="icon">🧬</span>
+              <span className="text">{loading ? "Analyzing..." : "Detect Identity from Chat"}</span>
+              {loading && <div className="loader"></div>}
+            </button>
 
-          {bridgeContext && (
-            <div className="memory-item" style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '8px' }}>
-              <strong>Active Thought Bridge:</strong> Ready to teleport.
+            <button 
+              onClick={injectUniversalContext}
+              className="action-btn sync-btn"
+              disabled={!identity && !bridgeContext}
+            >
+              <span className="icon">🚀</span>
+              <span className="text">Sync to this Chat</span>
+            </button>
+
+            {identity && (
+              <div className="identity-card">
+                <div className="card-label">DETECTED PERSONA</div>
+                <div className="role-text">{identity.role}</div>
+                <div className="goal-text">{identity.goal}</div>
+                {identity.tech_stack && (
+                  <div className="tech-pills">
+                    {identity.tech_stack.slice(0, 3).map(tech => (
+                      <span key={tech} className="pill">{tech}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <div className="panel-footer">
+            <div className="status-indicator">
+              <div className="dot"></div>
+              <span>Postgres & ChromaDB Connected</span>
             </div>
-          )}
-
-          <button 
-            onClick={injectUniversalContext}
-            className="inject-btn"
-            disabled={!identity && !bridgeContext}
-          >
-            🚀 Sync Identity to this Chat
-          </button>
-
-          {identity && (
-            <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(14, 165, 233, 0.05)', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.2)' }}>
-              <div style={{ fontSize: '10px', color: '#0ea5e9', fontWeight: 700, textTransform: 'uppercase' }}>Detected Identity</div>
-              <div style={{ fontSize: '12px', color: 'white', marginTop: '4px' }}>{identity.role}</div>
-            </div>
-          )}
+          </div>
         </div>
       )}
     </div>

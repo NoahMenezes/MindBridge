@@ -8,6 +8,15 @@ from typing import List, Optional, Literal
 from datetime import datetime, timezone
 import uuid
 
+from app.db.postgres import engine
+from app.db import models
+
+# Create tables (with fail-safe for offline DB)
+try:
+    models.Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Warning: Could not create Postgres tables: {e}")
+
 app = FastAPI()
 
 # --- Global Error Handlers ---
@@ -111,7 +120,7 @@ async def search_memories(request: SearchMemoriesRequest):
 
 @app.post("/extract_identity")
 async def extract_identity(request: ExtractIdentityRequest):
-    identity = analyze_chat_for_identity(request.history)
+    identity = analyze_chat_for_identity(request.history, request.workspace)
     
     # Also save this as a memory automatically
     store_memory(

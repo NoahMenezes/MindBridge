@@ -57,7 +57,7 @@ export const MCPErrorBodySchema = z.object({
    * Optional structured details for debugging.
    * e.g. { "field": "query", "received": 501, "max": 500 }
    */
-  details: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
 })
 
 export type MCPErrorBody = z.infer<typeof MCPErrorBodySchema>

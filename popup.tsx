@@ -121,32 +121,20 @@ function IndexPopup() {
         {activeTab === 'identity' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <section>
-              <div className="section-title">Neural Identity</div>
-              <div className="memory-card" style={{ background: 'var(--panel-bg)', padding: '16px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Master Identity Source
+              <div className="section-title">Neural Persona</div>
+              <div style={{ padding: '16px', background: 'linear-gradient(135deg, var(--accent-soft), transparent)', borderRadius: '16px', border: '1px solid var(--accent)', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>
+                  ACTIVE IDENTITY
                 </div>
-                {!user ? (
-                  <button onClick={handleSignIn} className="btn-primary" style={{ width: '100%', fontSize: '12px' }}>
-                    Sign in with Google
-                  </button>
-                ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>{user.email}</span>
-                      <span style={{ fontSize: '10px', color: 'var(--success)' }}>Firebase Authenticated</span>
-                    </div>
-                    <button onClick={handleSignOut} className="btn-ghost" style={{ fontSize: '10px' }}>Logout</button>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'white' }}>{identity?.role || "Neural Engineer"}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', lineBreak: 'anywhere' }}>{identity?.goal || "Building the future of AI connectivity"}</div>
+                {identity?.tech_stack && (
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '12px', flexWrap: 'wrap' }}>
+                    {identity.tech_stack.slice(0, 3).map(tech => (
+                      <span key={tech} style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', fontSize: '10px', color: 'var(--accent)' }}>{tech}</span>
+                    ))}
                   </div>
                 )}
-              </div>
-
-              <div style={{ padding: '16px', background: 'var(--accent-soft)', borderRadius: '12px', border: '1px solid var(--accent)', marginTop: '12px' }}>
-                <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>
-                  Active Persona
-                </div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: 'white' }}>{identity?.role || "Neural Engineer"}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{identity?.goal || "Building the future of AI connectivity"}</div>
               </div>
             </section>
 
@@ -160,11 +148,14 @@ function IndexPopup() {
                       <span style={{ fontSize: '13px', fontWeight: 500 }}>{p.name}</span>
                     </div>
                     {connections[p.id] === true ? (
-                      <div className="sync-status" style={{ color: 'var(--success)' }}><div className="dot"></div><span>Synced</span></div>
+                      <div className="sync-status" style={{ color: 'var(--success)', background: 'rgba(34, 197, 94, 0.1)', padding: '4px 8px', borderRadius: '6px' }}>
+                        <div className="dot"></div>
+                        <span>Synced</span>
+                      </div>
                     ) : connections[p.id] === 'syncing' ? (
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Verifying...</span>
+                      <div className="loader" style={{ width: '12px', height: '12px' }}></div>
                     ) : (
-                      <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={() => handleConnect(p.id)}>Connect</button>
+                      <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={() => handleConnect(p.id)}>Connect AI</button>
                     )}
                   </div>
                 ))}
