@@ -1,31 +1,32 @@
 export {}
 
-console.log("MindBridge Universal Memory Engine Active")
+console.log("MindBridge Neural Bridge Active")
 
-// Mock database
-let mockMemories = [
-  { summary: "Building a fintech dashboard with React", workspace: "Startup", score: 0.95 },
-  { summary: "Prefers concise, bulleted responses", workspace: "Personal", score: 0.88 },
-  { summary: "Using Supabase for backend auth", workspace: "Startup", score: 0.82 }
-]
+let currentBridgePrompt = null
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "GET_MEMORIES") {
-    const workspace = request.workspace || "Personal"
-    const filtered = mockMemories.filter(m => m.workspace === workspace || workspace === "All")
+  // 1. GENERATE - Receive raw context and "generate" a bridge prompt
+  if (request.type === "GENERATE_BRIDGE") {
+    console.log(`[Neural Bridge] Generating bridge from ${request.platform}...`)
     
+    // In production, this would call Claude API to summarize and create a prompt
+    // For now, we simulate the "AI model" processing
     setTimeout(() => {
-      sendResponse({ memories: filtered })
-    }, 200)
+      currentBridgePrompt = `The user was discussing: "${request.rawContent.substring(0, 100)}...". They need to continue this workflow. Focus on maintaining technical continuity and tone.`
+      
+      sendResponse({ bridgePrompt: currentBridgePrompt })
+    }, 1000)
     return true
   }
 
-  if (request.type === "CAPTURE_SNIPPET") {
-    console.log(`[Neural Capture] New snippet from ${request.platform}:`, request.content)
-    // In production, this would be sent to /api/extract
-    // For now, we'll simulate a "learned" memory appearing after 5 seconds
-    setTimeout(() => {
-      console.log("[Neural Engine] Successfully extracted new memory node.")
-    }, 5000)
+  // 2. CHECK - New tab asking if there's a context to "Pass"
+  if (request.type === "CHECK_BRIDGE") {
+    sendResponse({ bridgePrompt: currentBridgePrompt })
+  }
+
+  // 3. Optional: Clear bridge after successful pass
+  if (request.type === "CLEAR_BRIDGE") {
+    currentBridgePrompt = null
+    sendResponse({ success: true })
   }
 })

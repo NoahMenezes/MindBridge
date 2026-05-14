@@ -106,6 +106,18 @@ function IndexPopup() {
         {activeTab === 'memories' && (
           <>
             <div className="section-title">
+              <span>Active Neural Bridge</span>
+              <span className="dot" style={{ background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }}></span>
+            </div>
+            
+            <div className="memory-card" style={{ borderStyle: 'dashed', borderColor: '#f59e0b', marginBottom: '16px' }}>
+              <div className="memory-content" style={{ fontSize: '12px', color: '#f3f4f6' }}>
+                Neural context captured. Ready to pass to a new AI platform.
+              </div>
+              <button className="btn-ghost" style={{ marginTop: '8px', color: '#f59e0b', fontWeight: 600 }}>⚡ Bridge Ready</button>
+            </div>
+
+            <div className="section-title">
               <span>Syncing Across Platforms</span>
               <button className="btn-ghost" style={{ fontSize: '10px' }}>Refresh</button>
             </div>
