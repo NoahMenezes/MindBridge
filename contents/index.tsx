@@ -234,6 +234,12 @@ const MindBridgeUI = () => {
    * Sync memories
    */
   const captureAndSync = async () => {
+    // Open the local dashboard immediately
+    chrome.runtime.sendMessage({
+      type: "MANUAL_CONNECT",
+      payload: { url: "http://localhost:3000" }
+    })
+
     setSyncing(true)
 
     const payload =
@@ -267,12 +273,6 @@ const MindBridgeUI = () => {
 
           chrome.runtime.sendMessage({
             type: "OPEN_SIDE_PANEL"
-          })
-
-          // Open the local dashboard
-          chrome.runtime.sendMessage({
-            type: "MANUAL_CONNECT",
-            payload: { url: "http://localhost:3000" }
           })
         }
       }
