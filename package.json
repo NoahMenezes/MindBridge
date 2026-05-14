@@ -7,12 +7,15 @@
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
-    "package": "plasmo package"
+    "package": "plasmo package",
+    "test": "npx tsx --test packages/mcp-contracts/tests/schema.test.ts packages/mcp-contracts/tests/validation.test.ts packages/mcp-contracts/tests/compatibility.test.ts",
+    "play": "npx tsx packages/mcp-contracts/playground.ts"
   },
   "dependencies": {
     "plasmo": "0.90.5",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "4.1.1",
