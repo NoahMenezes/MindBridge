@@ -1,12 +1,4 @@
-/**
- * @file packages/mcp-contracts/playground.ts
- *
- * Interactive manual tester for mcp-contracts.
- * Run:  npx tsx packages/mcp-contracts/playground.ts
- *
- * You will be prompted to pick a tool and paste a JSON payload.
- * The playground validates it and shows you the result.
- */
+
 
 import * as readline from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
@@ -18,9 +10,9 @@ import { TOOL_NAMES }                             from "./constants/toolNames"
 import { CONTRACT_VERSION }                       from "./constants/versions"
 import { LIMITS }                                 from "./constants/limits"
 
-// ─────────────────────────────────────────────
-// ANSI colours (works on Windows Terminal / PowerShell 7)
-// ─────────────────────────────────────────────
+
+
+
 
 const c = {
   reset:  "\x1b[0m",
@@ -41,9 +33,9 @@ function dim   (s: string) { return `${c.dim}${s}${c.reset}` }
 function bold  (s: string) { return `${c.bold}${s}${c.reset}` }
 function yellow(s: string) { return `${c.yellow}${s}${c.reset}` }
 
-// ─────────────────────────────────────────────
-// Tool menu
-// ─────────────────────────────────────────────
+
+
+
 
 const TOOLS = {
   "1": { name: TOOL_NAMES.ADD_MEMORY,            fn: validateAddMemory },
@@ -74,9 +66,9 @@ const DEFAULT_PAYLOADS: Record<string, object> = {
   },
 }
 
-// ─────────────────────────────────────────────
-// Header
-// ─────────────────────────────────────────────
+
+
+
 
 function printHeader() {
   console.clear()
@@ -97,9 +89,9 @@ function printLimits() {
   console.log()
 }
 
-// ─────────────────────────────────────────────
-// Main loop
-// ─────────────────────────────────────────────
+
+
+
 
 async function main() {
   const rl = readline.createInterface({ input, output })
@@ -108,7 +100,7 @@ async function main() {
     printHeader()
     printLimits()
 
-    // Pick tool
+    
     console.log(bold("  Pick a tool to test:"))
     for (const [key, tool] of Object.entries(TOOLS)) {
       console.log(`    ${cyan(key)}) ${tool.name}`)
@@ -142,12 +134,12 @@ async function main() {
     console.log(dim(defaultPayload.split("\n").map(l => "    " + l).join("\n")))
     console.log()
 
-    // Collect input (supports multi-line)
+    
     let rawLines: string[] = []
     let line = await rl.question("  > ")
 
     if (line.trim() === "") {
-      // Use default
+      
       rawLines = [defaultPayload]
     } else {
       rawLines.push(line)
@@ -163,7 +155,7 @@ async function main() {
     console.log()
     console.log("  " + "─".repeat(50))
 
-    // Parse JSON
+    
     let payload: unknown
     try {
       payload = JSON.parse(raw)
@@ -173,8 +165,8 @@ async function main() {
       continue
     }
 
-    // Validate
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    
+    
     const result = (selected.fn as (p: unknown) => any)(payload)
 
     console.log()
@@ -201,7 +193,7 @@ async function main() {
     console.log()
     console.log("  " + "─".repeat(50))
 
-    // Quick re-test with intentionally bad payload
+    
     console.log()
     console.log(dim("  Want to try a deliberately broken payload? (y/n)"))
     const tryBad = (await rl.question("  → ")).trim().toLowerCase()
@@ -217,7 +209,7 @@ async function main() {
       const badLine = await rl.question("  Paste broken JSON: ")
       try {
         const badPayload = JSON.parse(badLine)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        
         const badResult = (selected.fn as (p: unknown) => any)(badPayload)
         console.log()
         if (!badResult.ok) {

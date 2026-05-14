@@ -1,10 +1,10 @@
 import { auth } from "~core/firebase"
 import { onAuthStateChanged } from "firebase/auth"
-import { addMemory, extractIdentity } from "~core/api"
+import { addMemory, extractIdentity, storeRawChat, getRecentChats } from "~core/api"
 
 console.log("MindBridge Neural Engine: Ready to Profile")
 
-// State Management
+
 let currentIdentity: any = null
 let currentBridgePrompt = null
 
@@ -15,7 +15,7 @@ const INITIAL_CONNECTIONS = {
   copilot: false
 }
 
-// Listen for Firebase Auth changes
+
 if (auth) {
   onAuthStateChanged(auth, (user) => {
     if (user) {
@@ -52,17 +52,8 @@ const updateConnection = (id, status) => {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // 1. EXTRACT IDENTITY - Uses Sneha's RAG MemoryEngine logic
+  
   if (request.type === "EXTRACT_IDENTITY") {
-    // BLOCKER: Do nothing if not signed in to Google
-    if (!currentIdentity?.email) {
-      console.log("[Neural Engine] Extraction blocked: No Google Identity found.")
-      return false
-    }
-
-    console.log("[Neural Engine] Analyzing chat history with Backend RAG engine...")
-    
-    // Call the Backend to convert unstructured chat to structured memory
     extractIdentity(request.history, "Personal").then((response) => {
       if (response?.identity) {
         currentIdentity = { ...currentIdentity, ...response.identity }
@@ -77,12 +68,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true
   }
 
-  // 2. GENERATE BRIDGE
+  
+  if (request.type === "STORE_RAW_CHAT") {
+    storeRawChat(request.raw_content, request.workspace, request.source).then((response) => {
+      if (response?.status === "success") {
+        sendResponse({ success: true })
+      } else {
+        sendResponse({ error: response?.message || "Store failed" })
+      }
+    }).catch(err => {
+      console.error("Store Error:", err)
+      sendResponse({ error: "Backend unreachable" })
+    })
+    return true
+  }
+
+  
+  if (request.type === "GET_RECENT_CHATS") {
+    getRecentChats("Personal").then((response) => {
+      sendResponse({ chats: response?.chats || [] })
+    }).catch(err => {
+      console.error("Fetch Error:", err)
+      sendResponse({ chats: [] })
+    })
+    return true
+  }
+
+  
   if (request.type === "GENERATE_BRIDGE") {
     const rawText = request.rawContent || ""
     currentBridgePrompt = `Continue the workflow for: "${rawText.substring(0, 100)}..."`
     
-    // Store bridge in ChromaDB
     addMemory(
       currentBridgePrompt, 
       "Personal", 
@@ -94,7 +110,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true
   }
 
-  // 3. CHECK SYNC
+  
   if (request.type === "CHECK_SYNC") {
     getConnections().then(connections => {
       sendResponse({ 
@@ -106,21 +122,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true
   }
 
-  // 4. PLATFORM_SYNC - Identity Verification Logic
+  
   if (request.type === "PLATFORM_SYNC") {
-    if (!currentIdentity?.email) {
-      console.log("[Neural Engine] Sync blocked: No Google Identity found.")
-      return false
-    }
-
     const { platform, status, detectedEmail } = request.payload
     
     let connectionStatus = status
     if (detectedEmail && currentIdentity?.email) {
       if (detectedEmail.toLowerCase() === currentIdentity.email.toLowerCase()) {
-        connectionStatus = true // Verified
+        connectionStatus = true 
       } else {
-        connectionStatus = "mismatch" // Warning
+        connectionStatus = "mismatch" 
       }
     }
 
@@ -130,14 +141,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false
   }
 
-  // 5. MANUAL_CONNECT
+  
   if (request.type === "MANUAL_CONNECT") {
     const { url } = request.payload
     chrome.tabs.create({ url })
     return false
   }
 
-  // 6. UPDATE_IDENTITY
+  
   if (request.type === "UPDATE_IDENTITY") {
     currentIdentity = { ...currentIdentity, ...request.identity }
     return false

@@ -1,10 +1,4 @@
-/**
- * @file tools/get_workspace_context.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * MCP tool definition for `get_workspace_context`.
- * Returns an aggregated snapshot: total count, recent memories, top tags.
- */
+
 
 import {
   GetWorkspaceContextRequestSchema,

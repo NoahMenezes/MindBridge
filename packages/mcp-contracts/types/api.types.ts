@@ -1,11 +1,4 @@
-/**
- * @file types/api.types.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Request and response envelope types for every MCP tool.
- * These are the final contract types consumed by extension, backend, and
- * retrieval engine. Inferred directly from Zod schemas — no manual typing.
- */
+
 
 import { z } from "zod"
 import {
@@ -18,9 +11,9 @@ import { MCPErrorSchema } from "../schemas/error.schema"
 import { LIMITS } from "../constants/limits"
 import { WorkspaceIdSchema } from "../schemas/workspace.schema"
 
-// ─────────────────────────────────────────────
-// add_memory
-// ─────────────────────────────────────────────
+
+
+
 
 export const AddMemoryRequestSchema = z.object({
   content:   z.string().min(LIMITS.MEMORY_CONTENT_MIN).max(LIMITS.MEMORY_CONTENT_MAX),
@@ -42,9 +35,9 @@ export const AddMemoryResponseSchema = z.object({
 export type AddMemoryRequest  = z.infer<typeof AddMemoryRequestSchema>
 export type AddMemoryResponse = z.infer<typeof AddMemoryResponseSchema>
 
-// ─────────────────────────────────────────────
-// search_memories
-// ─────────────────────────────────────────────
+
+
+
 
 export const SearchMemoriesRequestSchema  = SearchQuerySchema
 export const SearchMemoriesResponseSchema = z.object({
@@ -58,9 +51,9 @@ export const SearchMemoriesResponseSchema = z.object({
 export type SearchMemoriesRequest  = z.infer<typeof SearchMemoriesRequestSchema>
 export type SearchMemoriesResponse = z.infer<typeof SearchMemoriesResponseSchema>
 
-// ─────────────────────────────────────────────
-// get_workspace_context
-// ─────────────────────────────────────────────
+
+
+
 
 export const GetWorkspaceContextRequestSchema = z.object({
   workspace: WorkspaceIdSchema,
@@ -74,9 +67,9 @@ export const GetWorkspaceContextResponseSchema = z.object({
 export type GetWorkspaceContextRequest  = z.infer<typeof GetWorkspaceContextRequestSchema>
 export type GetWorkspaceContextResponse = z.infer<typeof GetWorkspaceContextResponseSchema>
 
-// ─────────────────────────────────────────────
-// delete_memory
-// ─────────────────────────────────────────────
+
+
+
 
 export const DeleteMemoryRequestSchema = z.object({
   id:        z.string().min(1),
@@ -94,15 +87,15 @@ export const DeleteMemoryResponseSchema = z.object({
 export type DeleteMemoryRequest  = z.infer<typeof DeleteMemoryRequestSchema>
 export type DeleteMemoryResponse = z.infer<typeof DeleteMemoryResponseSchema>
 
-// ─────────────────────────────────────────────
-// Shared API error type
-// ─────────────────────────────────────────────
+
+
+
 
 export type { MCPError, MCPErrorBody, ErrorCode } from "../schemas/error.schema"
 
-// ─────────────────────────────────────────────
-// Generic result wrapper (success | error)
-// ─────────────────────────────────────────────
+
+
+
 
 export type MCPResult<T> =
   | ({ ok: true }  & T)

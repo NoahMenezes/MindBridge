@@ -1,4 +1,4 @@
-# pyrefly: ignore [missing-import]
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -11,7 +11,7 @@ import uuid
 from app.db.postgres import engine
 from app.db import models
 
-# Create tables (with fail-safe for offline DB)
+
 try:
     models.Base.metadata.create_all(bind=engine)
 except Exception as e:
@@ -19,7 +19,7 @@ except Exception as e:
 
 app = FastAPI()
 
-# --- Global Error Handlers ---
+
 def format_error(status_code: int, code: str, message: str, details: dict = None):
     return JSONResponse(
         status_code=status_code,
@@ -46,7 +46,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     code = "UNKNOWN_ERROR"
     message = exc.detail
     
-    # Customize the global errors specified in the requirements
     if exc.status_code == 400:
         code = "INVALID_REQUEST"
         message = "Validation failed / Malformed JSON."
@@ -80,11 +79,12 @@ from app.schemas import (
     GetWorkspaceContextRequest,
     DeleteMemoryRequest,
     ExtractIdentityRequest,
+    StoreRawChatRequest
 )
 
-from app.services.memory_engine import store_memory, query_memories, analyze_chat_for_identity
+from app.services.memory_engine import store_memory, query_memories, analyze_chat_for_identity, store_raw_chat, get_recent_raw_chats
 
-# --- Endpoints ---
+
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "MindBridge AI Memory Engine Running"}
@@ -118,11 +118,27 @@ async def search_memories(request: SearchMemoriesRequest):
         "version": "1.0"
     }
 
+@app.post("/store_raw_chat")
+async def store_chat(request: StoreRawChatRequest):
+    result = store_raw_chat(request.raw_content, request.workspace, request.source)
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    return {
+        **result,
+        "message": "Raw chat history successfully stored in Supabase.",
+        "version": "1.0"
+    }
+
+@app.get("/recent_chats")
+async def recent_chats(workspace: str = "Personal"):
+    chats = get_recent_raw_chats(workspace)
+    return {"chats": chats}
+
 @app.post("/extract_identity")
 async def extract_identity(request: ExtractIdentityRequest):
     identity = analyze_chat_for_identity(request.history, request.workspace)
     
-    # Also save this as a memory automatically
+    
     store_memory(
         content=f"Detected Identity: {identity['role']} working on {identity['goal']}",
         workspace=request.workspace,
@@ -132,7 +148,7 @@ async def extract_identity(request: ExtractIdentityRequest):
     
     return {
         "identity": identity,
-        "message": "Identity analyzed and structured by MindBridge Backend.",
+        "message": "Identity analyzed and structured by MindBridge Backend using RAG context.",
         "version": "1.0"
     }
 

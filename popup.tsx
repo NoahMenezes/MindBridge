@@ -222,7 +222,7 @@ function IndexPopup() {
               }}>
                 <div className="logo-icon" style={{ zIndex: 2, transform: 'scale(1.2)', boxShadow: '0 0 20px rgba(14, 165, 233, 0.4)' }}>M</div>
                 
-                {/* Visual Mindmap Decoration */}
+                {}
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <div key={i} style={{
                     position: 'absolute',
@@ -244,7 +244,7 @@ function IndexPopup() {
                   </div>
                 ))}
                 
-                {/* Connecting lines (Visual only) */}
+                {}
                 <svg style={{ position: 'absolute', width: '100%', height: '100%', pointerEvents: 'none' }}>
                   <circle cx="50%" cy="50%" r="65" fill="none" stroke="var(--border)" strokeDasharray="4 4" />
                 </svg>

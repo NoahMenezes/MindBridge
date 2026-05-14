@@ -1,11 +1,4 @@
-/**
- * @file tests/validation.test.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Tests for the validation layer (validation/*.validation.ts).
- * Confirms that validation functions return MCPError envelopes on failure.
- * Run: npx tsx --test packages/mcp-contracts/tests/validation.test.ts
- */
+
 
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
@@ -14,9 +7,9 @@ import { validateAddMemory, validateDeleteMemory } from "../validation/memory.va
 import { validateSearchMemories } from "../validation/query.validation"
 import { validateGetWorkspaceContext } from "../validation/workspace.validation"
 
-// ─────────────────────────────────────────────
-// add_memory validation
-// ─────────────────────────────────────────────
+
+
+
 
 describe("validateAddMemory", () => {
   it("returns ok:true for a valid payload", () => {
@@ -55,9 +48,9 @@ describe("validateAddMemory", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// delete_memory validation
-// ─────────────────────────────────────────────
+
+
+
 
 describe("validateDeleteMemory", () => {
   it("returns ok:true for a valid payload", () => {
@@ -81,9 +74,9 @@ describe("validateDeleteMemory", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// search_memories validation
-// ─────────────────────────────────────────────
+
+
+
 
 describe("validateSearchMemories", () => {
   it("returns ok:true for a valid payload", () => {
@@ -119,9 +112,9 @@ describe("validateSearchMemories", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// get_workspace_context validation
-// ─────────────────────────────────────────────
+
+
+
 
 describe("validateGetWorkspaceContext", () => {
   it("returns ok:true for a valid payload", () => {

@@ -1,18 +1,13 @@
-/**
- * @file validation/memory.validation.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Validates add_memory and delete_memory request payloads.
- */
+
 
 import { ZodError } from "zod"
 import { AddMemoryRequestSchema, DeleteMemoryRequestSchema } from "../types/api.types"
 import { makeMCPError, ERROR_CODES } from "../schemas/error.schema"
 import type { MCPError } from "../schemas/error.schema"
 
-// ─────────────────────────────────────────────
-// Validation result
-// ─────────────────────────────────────────────
+
+
+
 
 export type ValidationOk<T>  = { ok: true;  data: T }
 export type ValidationErr    = { ok: false; error: MCPError }
@@ -27,9 +22,9 @@ function fromZodError(err: ZodError): MCPError {
   )
 }
 
-// ─────────────────────────────────────────────
-// add_memory
-// ─────────────────────────────────────────────
+
+
+
 
 export function validateAddMemory(
   payload: unknown,
@@ -39,9 +34,9 @@ export function validateAddMemory(
   return { ok: true, data: result.data }
 }
 
-// ─────────────────────────────────────────────
-// delete_memory
-// ─────────────────────────────────────────────
+
+
+
 
 export function validateDeleteMemory(
   payload: unknown,

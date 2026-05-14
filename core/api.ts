@@ -55,6 +55,30 @@ export const extractIdentity = async (history: string, workspace: string) => {
   }
 };
 
+export const storeRawChat = async (raw_content: string, workspace: string, source: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/store_raw_chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ raw_content, workspace, source })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("API Error (store_raw_chat):", error);
+    return null;
+  }
+};
+
+export const getRecentChats = async (workspace: string = "Personal") => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/recent_chats?workspace=${workspace}`);
+    return await response.json();
+  } catch (error) {
+    console.error("API Error (get_recent_chats):", error);
+    return { chats: [] };
+  }
+};
+
 export const getWorkspaceContext = async (workspace: string) => {
   try {
     const response = await fetch(`${API_BASE_URL}/get_workspace_context`, {

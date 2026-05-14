@@ -1,9 +1,4 @@
-/**
- * @file tools/delete_memory.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * MCP tool definition for `delete_memory`.
- */
+
 
 import {
   DeleteMemoryRequestSchema,

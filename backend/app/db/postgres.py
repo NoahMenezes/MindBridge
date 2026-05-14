@@ -4,7 +4,10 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+
+env_path = os.path.join(os.path.dirname(__file__), "../../../.env")
+load_dotenv(env_path)
+load_dotenv() 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost/mindbridge")
 

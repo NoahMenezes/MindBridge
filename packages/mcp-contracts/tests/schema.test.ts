@@ -1,10 +1,4 @@
-/**
- * @file tests/schema.test.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Tests that every Zod schema correctly accepts valid data and rejects invalid data.
- * Run: npx tsx --test packages/mcp-contracts/tests/schema.test.ts
- */
+
 
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
@@ -15,9 +9,9 @@ import { SearchQuerySchema } from "../schemas/query.schema"
 import { MCPErrorSchema, makeMCPError, ERROR_CODES } from "../schemas/error.schema"
 import { LIMITS } from "../constants/limits"
 
-// ─────────────────────────────────────────────
-// Fixtures
-// ─────────────────────────────────────────────
+
+
+
 
 const VALID_MEMORY = {
   id:        "mem_001",
@@ -31,9 +25,9 @@ const VALID_MEMORY = {
 
 const VALID_MEMORY_RESULT = { ...VALID_MEMORY, score: 0.92 }
 
-// ─────────────────────────────────────────────
-// MemoryTypeSchema
-// ─────────────────────────────────────────────
+
+
+
 
 describe("MemoryTypeSchema", () => {
   it("accepts all valid types", () => {
@@ -48,9 +42,9 @@ describe("MemoryTypeSchema", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// MemorySchema
-// ─────────────────────────────────────────────
+
+
+
 
 describe("MemorySchema", () => {
   it("accepts a valid memory object", () => {
@@ -99,9 +93,9 @@ describe("MemorySchema", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// MemoryResultSchema
-// ─────────────────────────────────────────────
+
+
+
 
 describe("MemoryResultSchema", () => {
   it("accepts a memory result with score", () => {
@@ -121,9 +115,9 @@ describe("MemoryResultSchema", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// WorkspaceIdSchema
-// ─────────────────────────────────────────────
+
+
+
 
 describe("WorkspaceIdSchema", () => {
   it('accepts "*" for global', () => {
@@ -143,9 +137,9 @@ describe("WorkspaceIdSchema", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// SearchQuerySchema
-// ─────────────────────────────────────────────
+
+
+
 
 describe("SearchQuerySchema", () => {
   it("accepts a minimal valid query", () => {
@@ -188,9 +182,9 @@ describe("SearchQuerySchema", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// Error schema + makeMCPError helper
-// ─────────────────────────────────────────────
+
+
+
 
 describe("MCPErrorSchema + makeMCPError", () => {
   it("makeMCPError produces a valid error envelope", () => {

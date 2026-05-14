@@ -1,9 +1,4 @@
-/**
- * @file validation/workspace.validation.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Validates get_workspace_context request payloads.
- */
+
 
 import { ZodError } from "zod"
 import { GetWorkspaceContextRequestSchema } from "../types/api.types"

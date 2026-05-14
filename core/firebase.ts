@@ -11,7 +11,7 @@ const firebaseConfig = {
   measurementId: process.env.PLASMO_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Only initialize if we have a config to prevent crashing the extension
+
 let app;
 let auth;
 

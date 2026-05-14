@@ -1,9 +1,4 @@
-/**
- * @file tools/add_memory.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * MCP tool definition for `add_memory`.
- */
+
 
 import { AddMemoryRequestSchema, AddMemoryResponseSchema } from "../types/api.types"
 import { TOOL_NAMES } from "../constants/toolNames"

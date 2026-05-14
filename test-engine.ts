@@ -5,7 +5,7 @@ async function runTest() {
   console.log("🧪 MINDBRIDGE: TESTING NEURAL EXTRACTION");
   console.log("-----------------------------------------");
 
-  // Sample conversation to test the engine
+  
   const sampleConversation = `
     User: I'm starting a new project called 'VisionPlay'.
     AI: That sounds interesting! What's the goal?

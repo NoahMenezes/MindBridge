@@ -1,13 +1,4 @@
-/**
- * @file tests/compatibility.test.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Contract compatibility tests — verifies that every tool's example
- * request/response pair actually passes its own schemas, and that
- * the tool registry is complete and correctly structured.
- *
- * Run: npx tsx --test packages/mcp-contracts/tests/compatibility.test.ts
- */
+
 
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
@@ -27,9 +18,9 @@ const ALL_TOOLS = [
   DELETE_MEMORY_TOOL,
 ] as const
 
-// ─────────────────────────────────────────────
-// Tool registry integrity
-// ─────────────────────────────────────────────
+
+
+
 
 describe("Tool registry", () => {
   it("exports exactly 4 tools", () => {
@@ -63,9 +54,9 @@ describe("Tool registry", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// Example request/response compatibility
-// ─────────────────────────────────────────────
+
+
+
 
 describe("add_memory — example compatibility", () => {
   it("example request passes inputSchema", () => {
@@ -131,9 +122,9 @@ describe("delete_memory — example compatibility", () => {
   })
 })
 
-// ─────────────────────────────────────────────
-// Constants sanity checks
-// ─────────────────────────────────────────────
+
+
+
 
 describe("Constants sanity", () => {
   it("LIMITS are logically consistent", () => {

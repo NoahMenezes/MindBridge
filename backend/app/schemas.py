@@ -2,9 +2,9 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Annotated
 from datetime import datetime
 
-# --- Limits ---
+
 MEMORY_CONTENT_MIN = 1
-MEMORY_CONTENT_MAX = 10000
+MEMORY_CONTENT_MAX = 100000 
 MEMORY_SUMMARY_MIN = 1
 MEMORY_SUMMARY_MAX = 500
 TAG_MIN_LENGTH = 1
@@ -23,14 +23,14 @@ SCORE_MIN_DEFAULT = 0.5
 RECENT_MEMORIES_MAX = 5
 TOP_TAGS_MAX = 10
 
-# Types
+
 MemoryType = Literal["project", "preference", "goal", "collaborator", "note", "context"]
 
-# Common annotations
+
 WorkspaceId = Annotated[str, Field(min_length=WORKSPACE_MIN, max_length=WORKSPACE_MAX)]
 TagType = Annotated[str, Field(min_length=TAG_MIN_LENGTH, max_length=TAG_MAX_LENGTH)]
 
-# --- Base Models ---
+
 class MemoryResult(BaseModel):
     id: str = Field(..., min_length=1)
     workspace: WorkspaceId
@@ -52,7 +52,7 @@ class WorkspaceContext(BaseModel):
     recent_memories: List[MemoryResult] = Field(..., max_length=RECENT_MEMORIES_MAX)
     top_tags: List[TagFrequency] = Field(..., max_length=TOP_TAGS_MAX)
 
-# --- Request & Response Models ---
+
 
 class AddMemoryRequest(BaseModel):
     content: str = Field(..., min_length=MEMORY_CONTENT_MIN, max_length=MEMORY_CONTENT_MAX)
@@ -108,3 +108,8 @@ class DeleteMemoryResponse(BaseModel):
     deleted_at: str
     message: str
     version: str
+
+class StoreRawChatRequest(BaseModel):
+    raw_content: str = Field(..., min_length=1)
+    workspace: WorkspaceId
+    source: str = "Unknown"

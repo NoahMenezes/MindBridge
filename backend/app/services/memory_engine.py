@@ -1,6 +1,6 @@
 from app.db.chroma import get_collection
 from app.db.postgres import SessionLocal
-from app.db.models import Identity
+from app.db.models import Identity, RawChatData
 from app.utils.llm import call_llm, extract_json
 import uuid
 import os
@@ -63,59 +63,83 @@ def query_memories(query, workspace, limit=10):
         print(f"ChromaDB Query Error: {e}")
         return []
 
+def store_raw_chat(raw_content: str, workspace: str, source: str):
+    
+    db = SessionLocal()
+    try:
+        new_raw_chat = RawChatData(
+            workspace=workspace,
+            source=source,
+            raw_content=raw_content,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.add(new_raw_chat)
+        db.commit()
+        db.refresh(new_raw_chat)
+        return {"status": "success", "id": new_raw_chat.id}
+    except Exception as e:
+        print(f"Postgres Store Raw Error: {e}")
+        db.rollback()
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+def get_recent_raw_chats(workspace: str, limit: int = 5):
+    
+    db = SessionLocal()
+    try:
+        chats = db.query(RawChatData).filter(RawChatData.workspace == workspace).order_by(RawChatData.created_at.desc()).limit(limit).all()
+        return [{
+            "id": c.id,
+            "source": c.source,
+            "snippet": c.raw_content[:150] + "...",
+            "created_at": c.created_at.isoformat()
+        } for c in chats]
+    except Exception as e:
+        print(f"Postgres Fetch Error: {e}")
+        return []
+    finally:
+        db.close()
+
 def analyze_chat_for_identity(history: str, workspace: str = "Personal"):
-    """
-    Uses LLM to perform deep RAG analysis of the conversation history.
-    Saves the result to Postgres and returns the structured identity.
-    """
+    
+    
+    
+    relevant_memories = query_memories(history[:500], workspace, limit=2)
+    context = "\n".join([m['content'] for m in relevant_memories])
+    
     
     structured_identity = {
-        "role": "Software Architect",
-        "goal": "Developing a cross-platform neural bridge",
-        "style": "Technical, direct",
-        "tech_stack": ["React", "Python"],
+        "role": "User",
+        "goal": "Collaborating with AI",
+        "style": "Professional",
+        "tech_stack": [],
         "analysis_timestamp": datetime.now(timezone.utc).isoformat()
     }
 
-    system_prompt = """
-    Analyze the following chat history and extract the user's professional identity.
-    Return a JSON object with:
-    - role: Their likely job title or primary role
-    - goal: Their current main objective or project focus
-    - style: Their communication style (e.g. "Concise", "Technical", "Creative")
-    - tech_stack: List of technologies mentioned
-    Format: JSON only.
-    """
     
-    user_prompt = f"Chat History:\n{history}"
+    system_prompt = f
     
-    response_text = call_llm(user_prompt, system_prompt)
+    response_text = call_llm(history, system_prompt)
     llm_data = extract_json(response_text)
     
     if llm_data:
         structured_identity.update(llm_data)
 
-    # Save to Postgres with error handling
     try:
         db = SessionLocal()
-        try:
-            new_identity = Identity(
-                workspace=workspace,
-                role=structured_identity["role"],
-                goal=structured_identity["goal"],
-                tech_stack=structured_identity["tech_stack"],
-                style=structured_identity["style"],
-                analysis_timestamp=datetime.now(timezone.utc)
-            )
-            db.add(new_identity)
-            db.commit()
-            db.refresh(new_identity)
-        except Exception as e:
-            print(f"Postgres Save Error: {e}")
-            db.rollback()
-        finally:
-            db.close()
+        new_identity = Identity(
+            workspace=workspace,
+            role=structured_identity["role"],
+            goal=structured_identity["goal"],
+            tech_stack=structured_identity["tech_stack"],
+            style=structured_identity["style"],
+            analysis_timestamp=datetime.now(timezone.utc)
+        )
+        db.add(new_identity)
+        db.commit()
+        db.close()
     except Exception as e:
-        print(f"Database Connection Error: {e}")
+        print(f"Postgres Save Error: {e}")
     
     return structured_identity

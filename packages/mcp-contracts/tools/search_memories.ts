@@ -1,10 +1,4 @@
-/**
- * @file tools/search_memories.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * MCP tool definition for `search_memories`.
- * MOST IMPORTANT TOOL — defines the semantic search contract.
- */
+
 
 import { SearchMemoriesRequestSchema, SearchMemoriesResponseSchema } from "../types/api.types"
 import { TOOL_NAMES } from "../constants/toolNames"

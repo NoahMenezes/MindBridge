@@ -15,6 +15,7 @@ filelock
 flatbuffers
 fsspec
 google-generativeai
+google-genai
 googleapis-common-protos
 greenlet
 grpcio
@@ -33,9 +34,9 @@ kubernetes
 markdown-it-py
 mdurl
 mmh3
+notion-client
 numpy
 oauthlib
-openai
 ollama
 onnxruntime
 opentelemetry-api

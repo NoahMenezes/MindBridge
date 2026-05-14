@@ -1,9 +1,4 @@
-/**
- * @file validation/query.validation.ts
- * @owner Person 2A — MCP Protocol Engineer
- *
- * Validates search_memories request payloads.
- */
+
 
 import { ZodError } from "zod"
 import { SearchMemoriesRequestSchema } from "../types/api.types"
