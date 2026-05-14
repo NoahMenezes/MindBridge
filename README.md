@@ -32,3 +32,21 @@ This should create a production bundle for your extension, ready to be zipped an
 
 The easiest way to deploy your Plasmo extension is to use the built-in [bpp](https://bpp.browser.market) GitHub action. Prior to using this action however, make sure to build your extension and upload the first version to the store to establish the basic credentials. Then, simply follow [this setup instruction](https://docs.plasmo.com/framework/workflows/submit) and you should be on your way for automated submission!
 # MindBridge
+
+A cross-platform memory operating system for AI tools.
+
+## MCP Protocol Authority (Person 2A)
+
+The core communication protocol is owned by **Person 2A**. All changes to request/response formats, tool definitions, and validation schemas must be coordinated through this layer.
+
+**Location**: `packages/mcp-contracts/`
+
+### Ownership Rules
+1. **Source of Truth**: `packages/mcp-contracts` is the only place where API shapes are defined.
+2. **No Manual Typing**: All team members MUST import types and validation from this package.
+3. **Breaking Changes**: Requires a version bump in `constants/versions.ts`.
+
+---
+
+## Getting Started
+...

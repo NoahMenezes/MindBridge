@@ -1,0 +1,38 @@
+{
+  "tool": "search_memories",
+  "version": "1.0",
+  "request": {
+    "query": "continue auth flow",
+    "workspace": "startup",
+    "limit": 5,
+    "min_score": 0.7
+  },
+  "response": {
+    "memories": [
+      {
+        "id": "mem_001",
+        "workspace": "startup",
+        "type": "project",
+        "summary": "React fintech dashboard",
+        "content": "Building a React-based fintech dashboard with JWT auth and OAuth 2.0 PKCE.",
+        "score": 0.93,
+        "tags": ["react", "auth", "fintech"],
+        "timestamp": "2026-05-14T11:29:32+05:30"
+      },
+      {
+        "id": "mem_002",
+        "workspace": "startup",
+        "type": "goal",
+        "summary": "Complete auth flow before demo",
+        "content": "Must finish the PKCE auth flow by Friday demo. Blocked on backend token endpoint.",
+        "score": 0.81,
+        "tags": ["auth", "deadline"],
+        "timestamp": "2026-05-13T09:00:00+05:30"
+      }
+    ],
+    "count": 2,
+    "query": "continue auth flow",
+    "workspace": "startup",
+    "version": "1.0"
+  }
+}
