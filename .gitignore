@@ -10,6 +10,8 @@ backend/venv/
 
 # misc
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.pem
 __pycache__/
 *.pyc

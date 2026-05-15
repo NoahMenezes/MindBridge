@@ -120,3 +120,13 @@ export const getRelevantMemories = async (query: string, workspace: string = "Pe
     return { status: "error", memories: [] };
   }
 };
+
+export const getSlackSyncUrl = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/slack/sync-url`);
+    return await response.json();
+  } catch (error) {
+    console.error("API Error (getSlackSyncUrl):", error);
+    return { url: "https://app.slack.com" };
+  }
+};

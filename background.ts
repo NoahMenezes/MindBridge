@@ -12,7 +12,8 @@ const INITIAL_CONNECTIONS = {
   chatgpt: false,
   claude: false,
   gemini: false,
-  copilot: false
+  copilot: false,
+  slack: false
 }
 
 

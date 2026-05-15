@@ -287,3 +287,33 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.mindbridge-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  z-index: 10002;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: toastSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mindbridge-toast.success {
+  background: #10b981;
+}
+
+.mindbridge-toast.error {
+  background: #ef4444;
+}
+
+@keyframes toastSlide {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

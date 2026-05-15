@@ -55,54 +55,56 @@ def generate_chat_context(query_text: str):
 
 def store_memory(content, workspace, type="note", tags=[], user_id=None, metadata={}):
     memory_id = f"mem_{uuid.uuid4().hex[:8]}"
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(timezone.utc).isoformat()
     
-    db = SessionLocal()
     try:
-        if not user_id:
-            user = db.query(User).first()
-            user_id = user.id if user else uuid.uuid4()
-
-        workspace_obj = get_or_create_workspace(db, workspace, user_id)
-        
+        # 1. Store in ChromaDB (Local Semantic Search)
         collection.add(
             documents=[content],
             metadatas=[{
-                "workspace_id": str(workspace_obj.id),
-                "user_id": str(user_id),
-                "type": type
+                "workspace": workspace,
+                "type": type,
+                "timestamp": timestamp
             }],
             ids=[memory_id]
         )
         
-        new_memory = PostgresMemory(
-            id=memory_id,
-            content=content,
-            type=type,
-            user_id=user_id,
-            workspace_id=workspace_obj.id,
-            tags=tags,
-            metadata_json=metadata,
-            source_url=metadata.get("source_url"),
-            extension_version=metadata.get("extension_version"),
-            created_at=timestamp
-        )
-        db.add(new_memory)
-        db.commit()
+        # 2. Store in Supabase via REST (Persistent Storage)
+        url = f"{SUPABASE_URL}/rest/v1/memories"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        
+        payload = {
+            "id": memory_id,
+            "content": content,
+            "type": type,
+            "workspace": workspace,
+            "tags": tags,
+            "metadata_json": metadata,
+            "created_at": timestamp
+        }
+        
+        with httpx.Client() as client:
+            response = client.post(url, headers=headers, json=payload)
+            if response.status_code >= 400:
+                print(f"Supabase REST Error (Memory): {response.text}")
+                return {"status": "error", "message": response.text}
+                
+        return {
+            "id": memory_id,
+            "workspace": workspace,
+            "type": type,
+            "tags": tags,
+            "created_at": timestamp,
+            "status": "success"
+        }
     except Exception as e:
-        db.rollback()
-        print(f"Supabase Persistence Error: {e}")
-        raise e
-    finally:
-        db.close()
-    
-    return {
-        "id": memory_id,
-        "workspace": workspace,
-        "type": type,
-        "tags": tags,
-        "created_at": timestamp.isoformat()
-    }
+        print(f"Store Memory Exception: {e}")
+        return {"status": "error", "message": str(e)}
 
 def query_memories(query, workspace, limit=10):
     try:
@@ -256,50 +258,63 @@ def search_relevant_memories(query: str, workspace: str = "Personal", limit: int
         return []
 
 def delete_memory(memory_id, workspace):
+    # 1. Delete from ChromaDB
     collection.delete(ids=[memory_id])
-    db = SessionLocal()
+    
+    # 2. Delete from Supabase via REST
     try:
-        memory = db.query(PostgresMemory).filter(PostgresMemory.id == memory_id).first()
-        if memory:
-            db.delete(memory)
-            db.commit()
-            return True
+        url = f"{SUPABASE_URL}/rest/v1/memories"
+        params = {"id": f"eq.{memory_id}"}
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}"
+        }
+        
+        with httpx.Client() as client:
+            response = client.delete(url, headers=headers, params=params)
+            return response.status_code < 400
     except Exception as e:
-        db.rollback()
-        print(f"Postgres Delete Error: {e}")
-    finally:
-        db.close()
-    return False
+        print(f"Delete Memory Error: {e}")
+        return False
 
 def get_workspace_context(workspace):
-    db = SessionLocal()
     try:
-        slug = workspace.lower().replace(" ", "-")
-        workspace_obj = db.query(PostgresWorkspace).filter(PostgresWorkspace.slug == slug).first()
+        # Use REST API to get counts and context
+        url = f"{SUPABASE_URL}/rest/v1/memories"
+        params = {
+            "workspace": f"eq.{workspace}",
+            "select": "count",
+            "Prefer": "count=exact"
+        }
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}"
+        }
         
-        if not workspace_obj:
-            return {"workspace": workspace, "total_memories": 0, "top_tags": []}
+        with httpx.Client() as client:
+            resp = client.get(url, headers=headers, params=params)
+            total = int(resp.headers.get("Content-Range", "0-0/0").split("/")[-1])
+            
+            # Get last updated
+            params_last = {
+                "workspace": f"eq.{workspace}",
+                "order": "created_at.desc",
+                "limit": 1
+            }
+            resp_last = client.get(url, headers=headers, params=params_last)
+            last_mem = resp_last.json()
+            last_updated = last_mem[0].get("created_at") if last_mem else None
 
-        total = db.query(PostgresMemory).filter(PostgresMemory.workspace_id == workspace_obj.id).count()
-        last_updated = db.query(PostgresMemory).filter(PostgresMemory.workspace_id == workspace_obj.id).order_by(PostgresMemory.created_at.desc()).first()
-        
-        memories = db.query(PostgresMemory).filter(PostgresMemory.workspace_id == workspace_obj.id).all()
-        tag_counts = {}
-        for m in memories:
-            for tag in m.tags:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        
-        top_tags = sorted([{"tag": k, "count": v} for k, v in tag_counts.items()], key=lambda x: x["count"], reverse=True)[:10]
-        
         return {
             "workspace": workspace,
             "total_memories": total,
-            "last_updated": last_updated.created_at.isoformat() if last_updated else None,
-            "top_tags": top_tags,
+            "last_updated": last_updated,
+            "top_tags": [], # Simplified for REST migration
             "recent_memories": []
         }
-    finally:
-        db.close()
+    except Exception as e:
+        print(f"Get Workspace Context Error: {e}")
+        return {"workspace": workspace, "total_memories": 0, "top_tags": []}
 
 import httpx
 
@@ -488,20 +503,10 @@ def analyze_chat_for_identity(history: str, workspace: str = "Personal"):
     if llm_data:
         structured_identity.update(llm_data)
 
-    try:
-        db = SessionLocal()
-        new_identity = Identity(
-            workspace=workspace,
-            role=structured_identity["role"],
-            goal=structured_identity["goal"],
-            tech_stack=structured_identity["tech_stack"],
-            style=structured_identity["style"],
-            analysis_timestamp=datetime.now(timezone.utc)
-        )
-        db.add(new_identity)
-        db.commit()
-        db.close()
-    except Exception as e:
-        print(f"Postgres Save Error: {e}")
+    if llm_data:
+        structured_identity.update(llm_data)
+
+    # Use the REST-based store function instead of direct Postgres
+    store_identity_profile(structured_identity, workspace)
     
     return structured_identity

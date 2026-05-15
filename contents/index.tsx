@@ -44,7 +44,7 @@ const MindBridgeUI = () => {
   const [showSyncModal, setShowSyncModal] = useState(false)
   const [retrievedMemories, setRetrievedMemories] = useState([])
   const [fetchingMemories, setFetchingMemories] = useState(false)
-  const [showToast, setShowToast] = useState(false)
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" })
 
   useEffect(() => {
     const checkChat = () => {
@@ -160,11 +160,17 @@ const MindBridgeUI = () => {
       setLoading(false)
       console.log("[MindBridge] Backend Response:", response)
       if (response?.status === "success") {
-        alert("Structured identity payload logged successfully on backend!")
+        triggerToast("Data synced to neural engine!", "success")
       } else {
+        triggerToast("Sync failed. Check backend connection.", "error")
         console.error("Transmission Failed:", response?.error)
       }
     })
+  }
+
+  const triggerToast = (message, type = "success") => {
+    setToast({ show: true, message, type })
+    setTimeout(() => setToast({ show: false, message: "", type: "success" }), 4000)
   }
 
   const openMemorySyncModal = () => {
@@ -214,8 +220,7 @@ const MindBridgeUI = () => {
       setShowSyncModal(false)
       setShowDropdown(false)
 
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+      triggerToast("Memory injected successfully!", "success")
     }
   }
 
@@ -367,9 +372,10 @@ const MindBridgeUI = () => {
         </div>
       )}
 
-      {showToast && (
-        <div style={{ position: "fixed", bottom: "20px", right: "20px", background: "#4caf50", color: "white", padding: "10px 20px", borderRadius: "8px", zIndex: 10000, fontWeight: "bold", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
-          Memory synced successfully
+      {toast.show && (
+        <div className={`mindbridge-toast ${toast.type}`}>
+          <span>{toast.type === 'success' ? '✅' : '❌'}</span>
+          {toast.message}
         </div>
       )}
     </div>

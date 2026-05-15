@@ -5,8 +5,8 @@
   "description": "A cross-platform memory operating system for AI tools.",
   "author": "Noah Menezes 2006noahmenezes@gmail.com",
   "scripts": {
-    "dev": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && ./venv/bin/python run.py\" \"cd docs && pnpm dev\"",
-    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && ./venv/bin/python run.py\" \"cd docs && pnpm dev\"",
+    "dev": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && venv\\Scripts\\python run.py\" \"cd docs && pnpm dev\"",
+    "dev:firefox": "concurrently \"plasmo dev --target=firefox-mv2\" \"cd backend && venv\\Scripts\\python run.py\" \"cd docs && pnpm dev\"",
     "docs": "cd docs && pnpm dev",
     "build": "plasmo build",
     "package": "plasmo package",
@@ -34,7 +34,8 @@
     "host_permissions": [
       "https://chatgpt.com/*",
       "https://claude.ai/*",
-      "https://gemini.google.com/*"
+      "https://gemini.google.com/*",
+      "http://localhost:8000/*"
     ],
     "permissions": [
       "storage",

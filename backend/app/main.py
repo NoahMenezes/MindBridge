@@ -19,10 +19,11 @@ except Exception as e:
     print(f"Warning: Could not create Postgres tables: {e}")
 
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import memory
+from app.routes import memory, slack
 
 app = FastAPI()
 app.include_router(memory.router)
+app.include_router(slack.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +32,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"\n[DEBUG] Incoming Request: {request.method} {request.url.path}")
+    response = await call_next(request)
+    print(f"[DEBUG] Response Status: {response.status_code}")
+    return response
 
 
 def format_error(status_code: int, code: str, message: str, details: dict = None):
@@ -147,6 +155,13 @@ async def detect_identity_endpoint(request: DetectIdentityRequest):
     # 5. Store Identity Profile in Supabase
     identity_result = store_identity_profile(identity_traits, request.workspace)
     
+    if identity_result.get("status") == "error":
+         return {
+            "status": "error",
+            "message": f"Identity storage failed: {identity_result.get('message')}",
+            "identity": identity_traits
+        }
+
     return {
         "status": "success",
         "message": "Identity detected, profiled, and stored successfully.",

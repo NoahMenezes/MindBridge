@@ -2,13 +2,14 @@ import { useState, useEffect } from "react"
 import "./style.css"
 import { auth } from "~core/firebase"
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth"
-import { searchMemories, type Memory } from "~core/api"
+import { searchMemories, getSlackSyncUrl, type Memory } from "~core/api"
 
 const platforms = [
   { id: 'chatgpt', name: 'ChatGPT', icon: '🤖', color: '#10a37f', url: 'https://chatgpt.com' },
   { id: 'claude', name: 'Claude.ai', icon: '🎭', color: '#d97757', url: 'https://claude.ai' },
   { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4', url: 'https://gemini.google.com' },
-  { id: 'copilot', name: 'Github Copilot', icon: '🚀', color: '#ffffff', url: 'https://github.com/copilot' }
+  { id: 'copilot', name: 'Github Copilot', icon: '🚀', color: '#ffffff', url: 'https://github.com/copilot' },
+  { id: 'slack', name: 'Slack', icon: '💬', color: '#4A154B', url: 'https://app.slack.com' }
 ]
 
 function IndexPopup() {
@@ -22,8 +23,15 @@ function IndexPopup() {
     chatgpt: false,
     claude: false,
     gemini: false,
-    copilot: false
+    copilot: false,
+    slack: false
   })
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" })
+
+  const triggerToast = (message, type = "success") => {
+    setToast({ show: true, message, type })
+    setTimeout(() => setToast({ show: false, message: "", type: "success" }), 3000)
+  }
 
   useEffect(() => {
     let unsubscribe = () => { }
@@ -84,11 +92,23 @@ function IndexPopup() {
 
   const handleSignOut = () => auth && signOut(auth)
 
-  const handleConnect = (id) => {
+  const handleConnect = async (id) => {
     const platform = platforms.find(p => p.id === id)
     if (platform) {
       setConnections(prev => ({ ...prev, [id]: 'syncing' }))
-      chrome.runtime.sendMessage({ type: "MANUAL_CONNECT", payload: { url: platform.url } })
+      
+      let targetUrl = platform.url
+      if (id === 'slack') {
+        const data = await getSlackSyncUrl()
+        if (data?.url) {
+          targetUrl = data.url
+          triggerToast("Slack Sync Initiated!", "success")
+        } else {
+          triggerToast("Failed to fetch Slack URL", "error")
+        }
+      }
+
+      chrome.runtime.sendMessage({ type: "MANUAL_CONNECT", payload: { url: targetUrl } })
     }
   }
 
@@ -267,6 +287,26 @@ function IndexPopup() {
           <span style={{ cursor: 'pointer' }}>Settings</span>
         </div>
       </footer>
+      {toast.show && (
+        <div className={`toast-notification ${toast.type}`} style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '20px',
+          right: '20px',
+          padding: '12px',
+          borderRadius: '12px',
+          color: 'white',
+          fontSize: '13px',
+          fontWeight: 600,
+          textAlign: 'center',
+          background: toast.type === 'success' ? '#10b981' : '#ef4444',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+          zIndex: 1000,
+          animation: 'toastIn 0.3s ease-out'
+        }}>
+          {toast.type === 'success' ? '✅ ' : '❌ '}{toast.message}
+        </div>
+      )}
     </div>
   )
 }
