@@ -248,7 +248,7 @@ def store_raw_chat(raw_content: str, workspace: str, source: str):
     ts = datetime.now(timezone.utc).isoformat()
     try:
         collection.add(
-            documents=[raw_content],
+            documents=[raw_content[:4000]], # Truncate for embedding
             metadatas=[{"workspace": workspace, "type": "raw_chat", "timestamp": ts}],
             ids=[memory_id]
         )
@@ -266,7 +266,7 @@ def store_structured_chat(messages: list, workspace: str):
     content = "\n".join([f"{m.get('role','user')}: {m.get('content','')}" for m in messages])
     try:
         collection.add(
-            documents=[content],
+            documents=[content[:4000]], # Truncate for embedding
             metadatas=[{"workspace": workspace, "type": "structured_chat", "timestamp": ts}],
             ids=[memory_id]
         )
