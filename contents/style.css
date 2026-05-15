@@ -287,3 +287,33 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.sync-btn-small {
+  background: #0ea5e9;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.sync-btn-small:hover {
+  background: #0284c7;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+}
+
+.fallback-item {
+  background: rgba(245, 158, 11, 0.05) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+.fallback-item .source-tag {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}

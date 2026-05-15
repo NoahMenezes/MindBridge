@@ -98,7 +98,7 @@ from app.schemas import (
 
 from app.services.memory_engine import (
     store_memory, 
-    query_memories, 
+    search_relevant_memories, 
     analyze_chat_for_identity, 
     store_raw_chat, 
     store_structured_chat,
@@ -174,7 +174,7 @@ async def add_memory(request: AddMemoryRequest):
 
 @app.post("/search_memories")
 async def search_memories(request: SearchMemoriesRequest):
-    memories = query_memories(
+    memories = search_relevant_memories(
         query=request.query,
         workspace=request.workspace,
         limit=request.limit

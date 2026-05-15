@@ -1,50 +1,53 @@
 import os
+import uuid
+import httpx
+from datetime import datetime, timezone
 from app.db.chroma import get_collection
-from app.db.postgres import SessionLocal
-from app.db.models import User, Workspace as PostgresWorkspace, Memory as PostgresMemory, Identity, RawChatData, StructuredChatData
 from app.utils.llm import call_llm, extract_json
 
-
-import uuid
-from datetime import datetime, timezone
+# Configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json"
+}
 
 collection = get_collection()
 
-def get_or_create_workspace(db, name: str, user_id: uuid.UUID):
-    slug = name.lower().replace(" ", "-")
-    workspace = db.query(PostgresWorkspace).filter(PostgresWorkspace.slug == slug).first()
-    if not workspace:
-        workspace = PostgresWorkspace(name=name, slug=slug, owner_id=user_id)
-        db.add(workspace)
-        db.flush()
-    return workspace
+# ----------------------------
+# 1. CHAT CONTEXT PARSER
+# ----------------------------
 
 def generate_chat_context(query_text: str):
     """
-    Architectural Step 1: Chat Context Parser.
-    Generates a structured semantic representation of the chat without storing it.
+    Architectural Step 1: Generate a structured semantic representation of the chat.
+    This is transient and NOT stored in the database.
     """
     prompt = f"""
-    Analyze the following chat context and extract its structured semantic meaning for vector retrieval.
-    Return ONLY a JSON object with these keys:
-    - intent: what the user is trying to do
-    - topics: comma-separated list of key subjects
-    - entities: people, tools, systems, projects mentioned
-    - actions: requests, commands, or goals identified
-    - compressed_summary: 1-2 sentence meaning of the interaction
+Analyze the following chat and extract its semantic core for vector search.
+Return ONLY a valid JSON object with these EXACT keys:
+- intent: (what the user is trying to do)
+- topics: (key subjects discussed as a comma-separated string)
+- entities: (people, tools, systems, projects mentioned)
+- actions: (requests, commands, or goals identified)
+- compressed_summary: (1-3 sentence meaning of the interaction)
 
-    CHAT CONTEXT:
-    {query_text}
-    """
+CHAT CONTENT:
+{query_text}
+"""
     try:
         response = call_llm(prompt)
         context = extract_json(response)
         if context:
+            # Ensure all required keys exist
+            for key in ["intent", "topics", "entities", "actions", "compressed_summary"]:
+                if key not in context: context[key] = "none"
             return context
     except Exception as e:
         print(f"[CONTEXT_PARSER_ERROR] {e}")
     
-    # Minimal fallback structure
     return {
         "intent": "general inquiry",
         "topics": "unknown",
@@ -53,402 +56,248 @@ def generate_chat_context(query_text: str):
         "compressed_summary": query_text[:200]
     }
 
-def store_memory(content, workspace, type="note", tags=[], user_id=None, metadata={}):
-    memory_id = f"mem_{uuid.uuid4().hex[:8]}"
-    timestamp = datetime.now(timezone.utc)
-    
-    db = SessionLocal()
-    try:
-        if not user_id:
-            user = db.query(User).first()
-            user_id = user.id if user else uuid.uuid4()
-
-        workspace_obj = get_or_create_workspace(db, workspace, user_id)
-        
-        collection.add(
-            documents=[content],
-            metadatas=[{
-                "workspace_id": str(workspace_obj.id),
-                "user_id": str(user_id),
-                "type": type
-            }],
-            ids=[memory_id]
-        )
-        
-        new_memory = PostgresMemory(
-            id=memory_id,
-            content=content,
-            type=type,
-            user_id=user_id,
-            workspace_id=workspace_obj.id,
-            tags=tags,
-            metadata_json=metadata,
-            source_url=metadata.get("source_url"),
-            extension_version=metadata.get("extension_version"),
-            created_at=timestamp
-        )
-        db.add(new_memory)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Supabase Persistence Error: {e}")
-        raise e
-    finally:
-        db.close()
-    
-    return {
-        "id": memory_id,
-        "workspace": workspace,
-        "type": type,
-        "tags": tags,
-        "created_at": timestamp.isoformat()
-    }
-
-def query_memories(query, workspace, limit=10):
-    try:
-        slug = workspace.lower().replace(" ", "-")
-        url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
-        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        
-        workspace_id = None
-        with httpx.Client() as client:
-            resp = client.get(url, headers=headers)
-            if resp.status_code == 200 and len(resp.json()) > 0:
-                workspace_id = resp.json()[0]["id"]
-                
-        if not workspace_id:
-            return []
-
-        results = collection.query(
-            query_texts=[query],
-            where={"workspace_id": str(workspace_id)},
-            n_results=limit
-        )
-        
-        memories = []
-        if results["ids"] and len(results["ids"][0]) > 0:
-            for i in range(len(results["ids"][0])):
-                memories.append({
-                    "id": results["ids"][0][i],
-                    "content": results["documents"][0][i],
-                    "workspace": workspace,
-                    "type": results["metadatas"][0][i]["type"],
-                    "tags": [],
-                    "timestamp": results["metadatas"][0][i].get("timestamp"),
-                    "score": 1.0 - results["distances"][0][i] if "distances" in results else 0.8
-                })
-        return memories
-    except Exception as e:
-        print(f"Query Memories Error: {e}")
-        return []
+# ----------------------------
+# 2. SEMANTIC RETRIEVAL ENGINE
+# ----------------------------
 
 def search_relevant_memories(query: str, workspace: str = "Personal", limit: int = 10):
+    """
+    Architectural Steps 2 & 3: Context-aware semantic retrieval using vector search.
+    Includes a Cloud-to-Local sync check.
+    """
     try:
-        print(f"\n[CHROMA_DEBUG] Initiating Context-Aware Search in workspace: {workspace}")
-        
-        # 1. Resolve Workspace ID via REST
-        slug = workspace.lower().replace(" ", "-")
-        ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
-        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        
-        workspace_id = None
+        print(f"\n[CHROMA_SYNC] Starting semantic retrieval in workspace: {workspace}")
+
+        # 0. Cloud-to-Local Sync Check (Ensure Chroma has data if Supabase does)
         try:
-            with httpx.Client() as client:
-                resp = client.get(ws_url, headers=headers, timeout=5.0)
-                if resp.status_code == 200 and len(resp.json()) > 0:
-                    workspace_id = resp.json()[0]["id"]
-        except Exception as ws_err:
-            print(f"[CHROMA_DEBUG] Workspace resolution failed: {ws_err}")
+            local_count = collection.count() # This is global count, but we can check if it's 0
+            if local_count == 0:
+                print(f"[CHROMA_SYNC] Local store empty. Synchronizing from Supabase...")
+                sync_workspace_from_cloud(workspace)
+        except:
+            pass
 
-        where_filter = {"workspace_id": str(workspace_id)} if workspace_id else None
-        
-        # 2. Handle Empty Chat Input
-        search_query = query
-        if not search_query or not search_query.strip():
-            print("[CHROMA_DEBUG] Empty chat detected. Retrieving last stored memory for context.")
+        # 1. Handle Empty Input (Use last memory as seed context)
+        source_text = query
+        if not source_text or not source_text.strip():
+            print("[CHROMA_SYNC] Input empty. Using last stored memory as context seed.")
             last_mem = collection.get(limit=1, include=["documents"])
-            if last_mem["documents"]:
-                search_query = last_mem["documents"][0]
+            if last_mem.get("documents"):
+                source_text = last_mem["documents"][0]
             else:
-                return []
+                return get_recency_fallback(workspace, limit)
 
-        # 3. Generate Structured Semantic Context
-        print("[CHROMA_DEBUG] Generating semantic context via LLM...")
-        ctx = generate_chat_context(search_query)
-        embedding_input = f"{ctx.get('compressed_summary', '')} {ctx.get('intent', '')} {ctx.get('topics', '')} {ctx.get('entities', '')}"
-        print(f"[CHROMA_DEBUG] Embedding Input: {embedding_input[:100]}...")
+        # 1. Generate Structured Context (Transient)
+        ctx = generate_chat_context(source_text)
 
-        # 4. Semantic Search
+        # 2. Build Embedding Input (Mandatory Spec)
+        # compressed_summary + intent + topics + entities
+        embedding_input = (
+            f"{ctx.get('compressed_summary', '')} "
+            f"{ctx.get('intent', '')} "
+            f"{ctx.get('topics', '')} "
+            f"{ctx.get('entities', '')}"
+        ).strip()
+        
+        print(f"[CHROMA_SYNC] Querying Chroma with context: {embedding_input[:100]}...")
+
+        # 3. Vector Similarity Search (Top-K = limit)
+        # Results are ranked by vector distance, NOT by time.
         results = collection.query(
             query_texts=[embedding_input],
-            where=where_filter,
+            where={"workspace": workspace},
             n_results=limit
         )
 
-        memories = []
-        if results["ids"] and len(results["ids"][0]) > 0:
-            for i in range(len(results["ids"][0])):
-                content = results["documents"][0][i]
-                summary = content[:150] + "..." if len(content) > 150 else content
-                
-                dist = results["distances"][0][i] if "distances" in results else 0.5
-                score = max(0.0, 1.0 - min(dist, 1.0))
+        memories = parse_chroma_results(results)
 
-                # Threshold Filter
-                if score < 0.1: # Lowered threshold for better sensitivity
-                    continue
+        # 4. Fallback Logic (ONLY for failure or very low relevance)
+        if not memories or (len(memories) > 0 and memories[0].get("score", 0) < 0.2):
+            print("[CHROMA_SYNC] Low semantic relevance. Fetching recent logs as fallback.")
+            memories = get_recency_fallback(workspace, limit)
 
-                memories.append({
-                    "id": results["ids"][0][i],
-                    "summary": summary,
-                    "workspace": workspace,
-                    "type": results["metadatas"][0][i].get("type", "memory"),
-                    "timestamp": results["metadatas"][0][i].get("timestamp", datetime.now(timezone.utc).isoformat()),
-                    "score": score
-                })
-
-        # 5. Global Search Fallback
-        if len(memories) == 0:
-            if where_filter is not None:
-                print("[CHROMA_DEBUG] No matches in workspace. Retrying search GLOBALLY.")
-                return search_relevant_memories(query, workspace="Global_Search_Fallback", limit=limit)
-            
-            print("[CHROMA_DEBUG] No semantic matches found. Triggering final log-dump fallback.")
-            fallback_results = collection.get(
-                where=where_filter,
-                limit=limit,
-                include=["documents", "metadatas"]
-            )
-
-            if fallback_results["ids"]:
-                for i in range(len(fallback_results["ids"])):
-                    content = fallback_results["documents"][i]
-                    summary = content[:150] + "..." if len(content) > 150 else content
-                    memories.append({
-                        "id": fallback_results["ids"][i],
-                        "summary": summary,
-                        "workspace": workspace,
-                        "type": fallback_results["metadatas"][i].get("type", "memory"),
-                        "timestamp": fallback_results["metadatas"][i].get("timestamp", datetime.now(timezone.utc).isoformat()),
-                        "score": 0.0,
-                        "is_fallback": True
-                    })
-
-                if memories:
-                    memories.insert(0, {
-                        "id": "fallback-msg",
-                        "summary": "Oops! No relevant data found. Meanwhile... choose from this assortment: ",
-                        "type": "system",
-                        "workspace": workspace,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "is_message": True
-                    })
-
-        # 6. Sort and Limit
-        memories.sort(key=lambda x: x.get("score", 0), reverse=True)
         return memories[:limit]
+
     except Exception as e:
-        print(f"[CHROMA_DEBUG] Search Memories Error: {e}")
+        print(f"[CHROMA_SYNC_ERROR] {e}")
         return []
 
-    except Exception as e:
-        print(f"[CHROMA_DEBUG] Search Memories Error: {e}")
-        return []
+def parse_chroma_results(results):
+    memories = []
+    if results.get("ids") and results["ids"][0]:
+        for i in range(len(results["ids"][0])):
+            content = results["documents"][0][i]
+            dist = results["distances"][0][i] if "distances" in results else 0.5
+            # Score conversion
+            score = max(0.0, 1.0 - dist)
+            meta = results["metadatas"][0][i]
+            
+            memories.append({
+                "id": results["ids"][0][i],
+                "summary": content[:200] + ("..." if len(content) > 200 else ""),
+                "content": content,
+                "workspace": meta.get("workspace", "Global"),
+                "type": meta.get("type", "memory"),
+                "timestamp": meta.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                "score": score
+            })
+    return memories
 
-def delete_memory(memory_id, workspace):
-    collection.delete(ids=[memory_id])
-    db = SessionLocal()
+def get_recency_fallback(workspace, limit):
+    """
+    Architectural Step 4: Fallback to most recent logs.
+    """
+    # Fetch from current workspace
+    res = collection.get(where={"workspace": workspace}, limit=limit, include=["documents", "metadatas"])
+    
+    # If empty, fetch from any workspace
+    if not res.get("ids"):
+        res = collection.get(limit=limit, include=["documents", "metadatas"])
+
+    memories = []
+    if res.get("ids"):
+        # Local sort by timestamp DESC
+        items = []
+        for i in range(len(res["ids"])):
+            items.append({
+                "id": res["ids"][i],
+                "content": res["documents"][i],
+                "metadata": res["metadatas"][i]
+            })
+        
+        items.sort(key=lambda x: x["metadata"].get("timestamp", ""), reverse=True)
+
+        for item in items:
+            content = item["content"]
+            meta = item["metadata"]
+            memories.append({
+                "id": item["id"],
+                "summary": content[:200] + "...",
+                "content": content,
+                "workspace": meta.get("workspace", "System"),
+                "timestamp": meta.get("timestamp"),
+                "score": 0.0,
+                "is_fallback": True
+            })
+    return memories
+
+def sync_workspace_from_cloud(workspace: str):
+    """
+    Fetches all memories for a workspace from Supabase and populates ChromaDB.
+    Ensures local vector store is in sync with cloud persistence.
+    """
     try:
-        memory = db.query(PostgresMemory).filter(PostgresMemory.id == memory_id).first()
-        if memory:
-            db.delete(memory)
-            db.commit()
-            return True
-    except Exception as e:
-        db.rollback()
-        print(f"Postgres Delete Error: {e}")
-    finally:
-        db.close()
-    return False
-
-def get_workspace_context(workspace):
-    db = SessionLocal()
-    try:
-        slug = workspace.lower().replace(" ", "-")
-        workspace_obj = db.query(PostgresWorkspace).filter(PostgresWorkspace.slug == slug).first()
+        url = f"{SUPABASE_URL}/rest/v1/memories"
+        params = {"workspace": f"eq.{workspace}", "select": "*"}
         
-        if not workspace_obj:
-            return {"workspace": workspace, "total_memories": 0, "top_tags": []}
-
-        total = db.query(PostgresMemory).filter(PostgresMemory.workspace_id == workspace_obj.id).count()
-        last_updated = db.query(PostgresMemory).filter(PostgresMemory.workspace_id == workspace_obj.id).order_by(PostgresMemory.created_at.desc()).first()
-        
-        memories = db.query(PostgresMemory).filter(PostgresMemory.workspace_id == workspace_obj.id).all()
-        tag_counts = {}
-        for m in memories:
-            for tag in m.tags:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        
-        top_tags = sorted([{"tag": k, "count": v} for k, v in tag_counts.items()], key=lambda x: x["count"], reverse=True)[:10]
-        
-        return {
-            "workspace": workspace,
-            "total_memories": total,
-            "last_updated": last_updated.created_at.isoformat() if last_updated else None,
-            "top_tags": top_tags,
-            "recent_memories": []
-        }
-    finally:
-        db.close()
-
-import httpx
-
-# Supabase REST configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-def store_raw_chat(raw_content: str, workspace: str, source: str):
-    try:
-        # 1. Fetch Workspace ID via REST to bypass Postgres issues
-        slug = workspace.lower().replace(" ", "-")
-        ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
-        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        
-        workspace_id = "Personal"
         with httpx.Client() as client:
-            resp = client.get(ws_url, headers=headers)
-            if resp.status_code == 200 and len(resp.json()) > 0:
-                workspace_id = resp.json()[0]["id"]
+            resp = client.get(url, headers=HEADERS, params=params)
+            if resp.status_code == 200:
+                memories = resp.json()
+                if not memories: return
+                
+                documents = [m["content"] for m in memories]
+                metadatas = [{"workspace": m["workspace"], "type": m["type"], "timestamp": m["created_at"]} for m in memories]
+                ids = [m["id"] for m in memories]
+                
+                collection.add(
+                    documents=documents,
+                    metadatas=metadatas,
+                    ids=ids
+                )
+                print(f"[CLOUD_SYNC] Successfully hydrated {len(memories)} items from Supabase to ChromaDB.")
+    except Exception as e:
+        print(f"[CLOUD_SYNC_ERROR] {e}")
 
-        # 2. Add to ChromaDB for Semantic Search
-        memory_id = f"raw_{uuid.uuid4().hex[:8]}"
+# ----------------------------
+# 3. UNIFIED STORAGE (SYNC)
+# ----------------------------
+
+def store_memory(content, workspace, type="note", tags=None, metadata=None):
+    memory_id = f"mem_{uuid.uuid4().hex[:8]}"
+    ts = datetime.now(timezone.utc).isoformat()
+    
+    try:
+        # 1. Local Chroma
         collection.add(
-            documents=[raw_content],
-            metadatas=[{
-                "workspace_id": str(workspace_id),
-                "type": "raw_chat",
-                "source": source,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }],
+            documents=[content],
+            metadatas=[{"workspace": workspace, "type": type, "timestamp": ts}],
             ids=[memory_id]
         )
-
-        # 3. Store in Supabase via REST
-        url = f"{SUPABASE_URL}/rest/v1/raw_chat_data"
-        payload = {
-            "workspace": workspace,
-            "source": source,
-            "raw_content": raw_content,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
         
+        # 2. Remote Supabase REST
+        payload = {
+            "id": memory_id,
+            "content": content,
+            "type": type,
+            "workspace": workspace,
+            "tags": tags or [],
+            "metadata_json": metadata or {},
+            "created_at": ts
+        }
         with httpx.Client() as client:
-            response = client.post(url, headers={**headers, "Content-Type": "application/json", "Prefer": "return=representation"}, json=payload)
-            if response.status_code >= 400:
-                print(f"Supabase REST Error (Raw): {response.text}")
-                return {"status": "error", "message": response.text}
+            client.post(f"{SUPABASE_URL}/rest/v1/memories", headers=HEADERS, json=payload)
             
-            data = response.json()
-            return {"status": "success", "id": data[0].get("id") if data else None}
+        return {"status": "success", "id": memory_id}
     except Exception as e:
-        print(f"Raw Chat Store Exception: {e}")
+        print(f"[STORE_ERROR] {e}")
+        return {"status": "error", "message": str(e)}
+
+def store_raw_chat(raw_content: str, workspace: str, source: str):
+    memory_id = f"raw_{uuid.uuid4().hex[:8]}"
+    ts = datetime.now(timezone.utc).isoformat()
+    try:
+        collection.add(
+            documents=[raw_content],
+            metadatas=[{"workspace": workspace, "type": "raw_chat", "timestamp": ts}],
+            ids=[memory_id]
+        )
+        payload = {"workspace": workspace, "source": source, "raw_content": raw_content, "created_at": ts}
+        with httpx.Client() as client:
+            client.post(f"{SUPABASE_URL}/rest/v1/raw_chat_data", headers=HEADERS, json=payload)
+        return {"status": "success", "id": memory_id}
+    except Exception as e:
+        print(f"[RAW_STORE_ERROR] {e}")
         return {"status": "error", "message": str(e)}
 
 def store_structured_chat(messages: list, workspace: str):
+    memory_id = f"struct_{uuid.uuid4().hex[:8]}"
+    ts = datetime.now(timezone.utc).isoformat()
+    content = "\n".join([f"{m.get('role','user')}: {m.get('content','')}" for m in messages])
     try:
-        # 1. Fetch Workspace ID via REST
-        slug = workspace.lower().replace(" ", "-")
-        ws_url = f"{SUPABASE_URL}/rest/v1/workspaces?slug=eq.{slug}&select=id"
-        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        
-        workspace_id = "Personal"
-        with httpx.Client() as client:
-            resp = client.get(ws_url, headers=headers)
-            if resp.status_code == 200 and len(resp.json()) > 0:
-                workspace_id = resp.json()[0]["id"]
-
-        # 2. Extract content for ChromaDB
-        # We join the messages into a searchable block
-        content_block = "\n".join([f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages])
-        
-        # 3. Add to ChromaDB
-        memory_id = f"struct_{uuid.uuid4().hex[:8]}"
         collection.add(
-            documents=[content_block],
-            metadatas=[{
-                "workspace_id": str(workspace_id),
-                "type": "structured_chat",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }],
+            documents=[content],
+            metadatas=[{"workspace": workspace, "type": "structured_chat", "timestamp": ts}],
             ids=[memory_id]
         )
-
-        # 4. Store in Supabase via REST
-        url = f"{SUPABASE_URL}/rest/v1/structured_chat_data"
-        payload = {
-            "workspace": workspace,
-            "messages": messages,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        
+        payload = {"workspace": workspace, "messages": messages, "created_at": ts}
         with httpx.Client() as client:
-            response = client.post(url, headers={**headers, "Content-Type": "application/json", "Prefer": "return=representation"}, json=payload)
-            if response.status_code >= 400:
-                print(f"Supabase REST Error (Structured): {response.text}")
-                return {"status": "error", "message": response.text}
-            
-            data = response.json()
-            return {"status": "success", "id": data[0].get("id") if data else None}
+            client.post(f"{SUPABASE_URL}/rest/v1/structured_chat_data", headers=HEADERS, json=payload)
+        return {"status": "success", "id": memory_id}
     except Exception as e:
-        print(f"Structured Chat Store Exception: {e}")
+        print(f"[STRUCT_STORE_ERROR] {e}")
         return {"status": "error", "message": str(e)}
+
+# ----------------------------
+# 4. ADDITIONAL HELPERS
+# ----------------------------
 
 def get_recent_raw_chats(workspace: str, limit: int = 5):
     try:
-        url = f"{SUPABASE_URL}/rest/v1/raw_chat_data"
-        params = {
-            "workspace": f"eq.{workspace}",
-            "order": "created_at.desc",
-            "limit": limit
-        }
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}"
-        }
-        
+        params = {"workspace": f"eq.{workspace}", "order": "created_at.desc", "limit": limit}
         with httpx.Client() as client:
-            response = client.get(url, headers=headers, params=params)
-            if response.status_code >= 400:
-                return []
-            
-            chats = response.json()
-            return [{
-                "id": c.get("id"),
-                "source": c.get("source"),
-                "snippet": (c.get("raw_content") or "")[:150] + "...",
-                "created_at": c.get("created_at")
-            } for c in chats]
-    except Exception as e:
-        print(f"Get Recent Chats Error: {e}")
+            resp = client.get(f"{SUPABASE_URL}/rest/v1/raw_chat_data", headers=HEADERS, params=params)
+            return resp.json() if resp.status_code == 200 else []
+    except:
         return []
 
 def store_identity_profile(traits: dict, workspace: str):
     try:
-        url = f"{SUPABASE_URL}/rest/v1/identity_profiles"
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation"
-        }
-        
-        # Prepare payload matching the new identity_profiles schema
         payload = {
             "workspace": workspace,
             "name": traits.get("name"),
             "profession": traits.get("profession"),
             "interests": traits.get("interests", []),
-            "projects": traits.get("projects", []),
             "goals": traits.get("goals", []),
             "skills": traits.get("skills", []),
             "technologies": traits.get("technologies", []),
@@ -456,52 +305,46 @@ def store_identity_profile(traits: dict, workspace: str):
             "recurring_themes": traits.get("recurring_themes", []),
             "created_at": datetime.now(timezone.utc).isoformat()
         }
-        
         with httpx.Client() as client:
-            response = client.post(url, headers=headers, json=payload)
-            if response.status_code >= 400:
-                print(f"Supabase REST Error (Identity): {response.text}")
-                return {"status": "error", "message": response.text}
-            
-            data = response.json()
-            return {"status": "success", "id": data[0].get("id") if data else None}
-    except Exception as e:
-        print(f"Identity Profile Store Exception: {e}")
-        return {"status": "error", "message": str(e)}
+            client.post(f"{SUPABASE_URL}/rest/v1/identity_profiles", headers=HEADERS, json=payload)
+        return {"status": "success"}
+    except:
+        return {"status": "error"}
 
 def analyze_chat_for_identity(history: str, workspace: str = "Personal"):
-    relevant_memories = query_memories(history[:500], workspace, limit=2)
-    context = "\n".join([m['content'] for m in relevant_memories])
+    # Semantic retrieval for identity context
+    relevant = search_relevant_memories(history[:500], workspace, limit=2)
+    context = "\n".join([m['summary'] for m in relevant])
     
-    structured_identity = {
-        "role": "User",
-        "goal": "Collaborating with AI",
-        "style": "Professional",
-        "tech_stack": [],
-        "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+    prompt = f"Analyze user persona from chat: {history}\nHistorical context: {context}"
+    data = extract_json(call_llm(prompt)) or {}
+    
+    profile = {
+        "role": data.get("role", "User"),
+        "goal": data.get("goal", "Collaboration"),
+        "style": data.get("style", "Professional")
     }
-    
-    system_prompt = "Analyze the chat history and extract user role, goal, tech stack and style."
-    response_text = call_llm(history, system_prompt)
-    llm_data = extract_json(response_text)
-    
-    if llm_data:
-        structured_identity.update(llm_data)
+    profile.update(data)
+    store_identity_profile(profile, workspace)
+    return profile
 
+def delete_memory(memory_id, workspace):
     try:
-        db = SessionLocal()
-        new_identity = Identity(
-            workspace=workspace,
-            role=structured_identity["role"],
-            goal=structured_identity["goal"],
-            tech_stack=structured_identity["tech_stack"],
-            style=structured_identity["style"],
-            analysis_timestamp=datetime.now(timezone.utc)
-        )
-        db.add(new_identity)
-        db.commit()
-        db.close()
-    except Exception as e:
-        print(f"Postgres Save Error: {e}")
-    
-    return structured_identity
+        collection.delete(ids=[memory_id])
+        params = {"id": f"eq.{memory_id}"}
+        with httpx.Client() as client:
+            client.delete(f"{SUPABASE_URL}/rest/v1/memories", headers=HEADERS, params=params)
+        return True
+    except:
+        return False
+
+def get_workspace_context(workspace):
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/memories"
+        params = {"workspace": f"eq.{workspace}", "select": "count", "Prefer": "count=exact"}
+        with httpx.Client() as client:
+            resp = client.get(url, headers=HEADERS, params=params)
+            total = int(resp.headers.get("Content-Range", "0-0/0").split("/")[-1])
+            return {"workspace": workspace, "total_memories": total}
+    except:
+        return {"workspace": workspace, "total_memories": 0}

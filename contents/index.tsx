@@ -334,33 +334,42 @@ const MindBridgeUI = () => {
             ) : (
               <div className="history-section">
                 {retrievedMemories.map(mem => (
-                  <div key={mem.id} className="history-item" style={{ marginBottom: "15px", borderBottom: "1px solid #333", paddingBottom: "10px" }}>
-                    {mem.type !== 'system' && (
-                      <div className="item-meta">
-                        <span className="source-tag">{mem.type}</span>
-                        <span className="time-tag">{new Date(mem.timestamp).toLocaleDateString()}</span>
-                        <span className="source-tag" style={{ marginLeft: "5px" }}>{mem.workspace}</span>
-                      </div>
-                    )}
-                    <div className="item-snippet" style={{ 
-                      margin: "8px 0", 
-                      fontStyle: mem.type === 'system' ? 'italic' : 'normal',
-                      color: mem.type === 'system' ? '#f59e0b' : 'inherit',
-                      fontWeight: mem.type === 'system' ? 'bold' : 'normal'
-                    }}>
+                  <div key={mem.id} className={`history-item ${mem.is_fallback ? 'fallback-item' : ''}`} style={{ 
+                    position: 'relative',
+                    borderLeft: mem.is_fallback ? '4px solid #f59e0b' : '4px solid #0ea5e9',
+                    marginBottom: '12px'
+                  }}>
+                    <div className="item-meta">
+                      <span className="source-tag">{mem.type}</span>
+                      <span className="time-tag">
+                        {mem.score > 0 && !mem.is_fallback && (
+                          <span style={{ color: '#0ea5e9', fontWeight: 'bold', marginRight: '8px' }}>
+                            {Array(Math.ceil(mem.score * 5)).fill('⭐').join('')}
+                          </span>
+                        )}
+                        {mem.timestamp ? new Date(mem.timestamp).toLocaleDateString() : 'Recent'}
+                      </span>
+                    </div>
+                    <div className="item-snippet">
                       {mem.summary}
                     </div>
-                    {mem.type !== 'system' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                      <span className="source-tag" style={{ opacity: 0.7 }}>{mem.workspace}</span>
                       <button
-                        onClick={() => injectMemoryContext(mem.summary)}
-                        style={{ background: "#4caf50", color: "white", padding: "6px 12px", borderRadius: "4px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                        className="sync-btn-small"
+                        onClick={() => injectMemoryContext(mem.content || mem.summary)}
                       >
-                        Sync
+                        SYNC CONTEXT
                       </button>
-                    )}
+                    </div>
                   </div>
                 ))}
-                {retrievedMemories.length === 0 && <div className="empty-state">No relevant memories found.</div>}
+                {retrievedMemories.length === 0 && (
+                  <div className="empty-state">
+                    <p>No relevant archives detected.</p>
+                    <button className="action-btn" onClick={openMemorySyncModal}>Retry Search</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
